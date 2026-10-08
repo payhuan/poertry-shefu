@@ -1,0 +1,61 @@
+{
+  "version": "6023130f8c705a12",
+  "repository": "https://github.com/chinese-poetry/chinese-poetry",
+  "commit": "b8594f81a89752241442f2ce267d6f66f96704ee",
+  "license": "MIT",
+  "totalLines": 54511,
+  "counts": {
+    "2": 262,
+    "3": 4297,
+    "4": 8408,
+    "5": 18511,
+    "6": 2737,
+    "7": 20076,
+    "8": 129,
+    "9": 44,
+    "10": 35,
+    "11": 7,
+    "12": 4,
+    "13": 0,
+    "14": 0,
+    "15": 1
+  },
+  "files": [
+    {
+      "file": "全唐诗/poet.tang.0.json",
+      "sha256": "4f88f429938082523cdc72a1612bd7a7c3e3f7a33f8192c61ae51340efc3c92d",
+      "poems": 1000,
+      "accepted": 8251
+    },
+    {
+      "file": "全唐诗/poet.tang.1000.json",
+      "sha256": "6e703b8d8dcedbd6110f6d48d043665ca2131db2035a5bfcef5e59a19aeb6d75",
+      "poems": 1000,
+      "accepted": 10003
+    },
+    {
+      "file": "全唐诗/poet.song.0.json",
+      "sha256": "182f75fb3ded001e73d2971becd1ebae3aa06e11ce960091c887aed70f3b46b2",
+      "poems": 1000,
+      "accepted": 7346
+    },
+    {
+      "file": "全唐诗/poet.song.1000.json",
+      "sha256": "28058e32b6d1ad947f2068fa6ca4f5f6fa448a10ae63853e7dcd7f47bee0fc81",
+      "poems": 1000,
+      "accepted": 6554
+    },
+    {
+      "file": "宋词/ci.song.0.json",
+      "sha256": "7761bc5ef50305753ea3dcea9e1ef3164e153e3ee366169e9c5a9a7d85b21b22",
+      "poems": 1000,
+      "accepted": 12093
+    },
+    {
+      "file": "宋词/ci.song.1000.json",
+      "sha256": "5f79a2d9011e6d414f04e51176c5d4f4c762fd784dce98b035968367b6f2ef4e",
+      "poems": 1000,
+      "accepted": 10264
+    }
+  ]
+}

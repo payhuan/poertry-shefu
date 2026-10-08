@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/chinese-poetry/chinese-poetry",
+  "commit": "b8594f81a89752241442f2ce267d6f66f96704ee",
+  "license": "MIT",
+  "files": [
+    "全唐诗/poet.tang.0.json",
+    "全唐诗/poet.tang.1000.json",
+    "全唐诗/poet.song.0.json",
+    "全唐诗/poet.song.1000.json",
+    "宋词/ci.song.0.json",
+    "宋词/ci.song.1000.json"
+  ]
+}

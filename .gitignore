@@ -4,6 +4,7 @@ coverage/
 playwright-report/
 test-results/
 data/cache/
+*.tsbuildinfo
 *.local
 .DS_Store
 
