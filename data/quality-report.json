@@ -33,7 +33,7 @@
     },
     {
       "file": "宋词/ci.song.1000.json",
-      "sha256": "5f79a2d9011e6d414f04e51176c5d4f4c762fd784dce98b035968367b6f2ef4e",
+      "sha256": "ef9ee53e625b68bb4ed7003ce481842f8d59101aeee0474bdd6feb3945fe5f54",
       "poems": 1000,
       "accepted": 10264
     },
@@ -54,6 +54,7 @@
   "accepted": 61434,
   "rejected": 164,
   "duplicateNormalizedLines": 3450,
+  "correctionsApplied": 1,
   "countsByLength": {
     "2": 302,
     "3": 5133,

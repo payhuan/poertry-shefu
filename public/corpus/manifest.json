@@ -1,5 +1,5 @@
 {
-  "version": "e00f82d4dc9429a3",
+  "version": "aedcd68f7d111c94",
   "repository": "https://github.com/chinese-poetry/chinese-poetry",
   "commit": "b8594f81a89752241442f2ce267d6f66f96704ee",
   "license": "MIT",
@@ -53,7 +53,7 @@
     },
     {
       "file": "宋词/ci.song.1000.json",
-      "sha256": "5f79a2d9011e6d414f04e51176c5d4f4c762fd784dce98b035968367b6f2ef4e",
+      "sha256": "ef9ee53e625b68bb4ed7003ce481842f8d59101aeee0474bdd6feb3945fe5f54",
       "poems": 1000,
       "accepted": 10264
     },

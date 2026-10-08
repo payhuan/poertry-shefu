@@ -6,6 +6,7 @@ import { Converter } from 'opencc-js/t2cn'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const source = JSON.parse(await readFile(path.join(root, 'data/source-manifest.json'), 'utf8'))
+const corrections = JSON.parse(await readFile(path.join(root, 'data/corpus-corrections.json'), 'utf8'))
 const cacheDir = path.join(root, 'data/cache')
 const outDir = path.join(root, 'public/corpus')
 await mkdir(cacheDir, { recursive: true })
@@ -36,6 +37,7 @@ const fileStats = []
 let segments = 0
 let rejected = 0
 let duplicates = 0
+let correctionsApplied = 0
 
 for (const [fileIndex, file] of source.files.entries()) {
   const body = await fetchPinned(file)
@@ -47,11 +49,22 @@ for (const [fileIndex, file] of source.files.entries()) {
     const author = String(poem.author || '佚名').trim()
     const title = String(poem.title || poem.rhythmic || '无题').trim()
     if (!Array.isArray(poem.paragraphs)) continue
+    const paragraphs = poem.paragraphs.map(value => String(value).trim()).filter(Boolean)
+    for (const correction of corrections) {
+      if (correction.file !== file || correction.index !== recordIndex) continue
+      const paragraphIndex = paragraphs.findIndex(value => value.includes(correction.from))
+      if (paragraphIndex >= 0) {
+        paragraphs[paragraphIndex] = paragraphs[paragraphIndex].replace(correction.from, correction.to)
+      } else if (!paragraphs.some(value => value.includes(correction.to))) {
+        throw new Error(`Correction source not found: ${file}#${recordIndex}`)
+      }
+      correctionsApplied += 1
+    }
     const dynasty = file.includes('poet.tang') || file.endsWith('唐诗三百首.json') ? '唐' : '宋'
     const tags = Array.isArray(poem.tags) ? poem.tags.map(String) : []
     const familiarity = tags.some(tag => /小学古诗|初中古诗|高中古诗|[一二三四五六七八九]年级|高[一二三]年级/u.test(tag))
       ? 2 : file.endsWith('三百首.json') || tags.some(tag => tag.includes('诗三百首') || tag.includes('词三百首')) ? 1 : 0
-    for (const paragraph of poem.paragraphs) {
+    for (const paragraph of paragraphs) {
       for (const text of splitLines(paragraph)) {
         segments += 1
         const normalized = clean(text)
@@ -77,7 +90,7 @@ for (const [fileIndex, file] of source.files.entries()) {
         lines.set(id, line)
         works[recordIndex] ??= {
           author, title, dynasty,
-          paragraphs: poem.paragraphs.map(value => String(value).trim()).filter(Boolean),
+          paragraphs,
         }
         accepted += 1
       }
@@ -97,7 +110,7 @@ for (let length = 2; length <= 15; length += 1) {
   await writeFile(path.join(outDir, `lines-${length}.json`), JSON.stringify(shard))
 }
 const manifest = {
-  version: hash(JSON.stringify({ source, fileStats })).slice(0, 16),
+  version: hash(JSON.stringify({ source, fileStats, corrections })).slice(0, 16),
   repository: source.repository,
   commit: source.commit,
   license: source.license,
@@ -108,7 +121,7 @@ const manifest = {
 await writeFile(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 await writeFile(path.join(root, 'data/quality-report.json'), JSON.stringify({
   sourceCommit: source.commit, sourceFiles: fileStats,
-  segments, accepted: lines.size, rejected, duplicateNormalizedLines: duplicates,
+  segments, accepted: lines.size, rejected, duplicateNormalizedLines: duplicates, correctionsApplied,
   countsByLength: counts, familiarityCounts,
 }, null, 2) + '\n')
 await writeFile(path.join(outDir, 'LICENSE.txt'), await fetchPinned('LICENSE'))
