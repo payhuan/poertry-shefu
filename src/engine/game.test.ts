@@ -49,6 +49,30 @@ describe('poetry rules and game flow', () => {
     expect(game.stage).toBe('question')
     expect(game.error).toContain('可用答案')
   })
+  it('rejects a target character already present in the previous line', () => {
+    expect(validateQuestionShape('樽前当日客', 5, '日', 2, 15)).toContain('不能出现在上一句')
+    const invalid = { ...question(), c: '少' }
+    const game = transition(createSession(settings, 0), { type: 'SET_QUESTION', question: invalid, solutionCount: 2, now: 1 })
+    expect(game.stage).toBe('question')
+    expect(game.error).toContain('不能出现在上一句')
+  })
+  it('returns an already saved invalid question to its setter without scoring', () => {
+    const game = answering()
+    game.question = { ...question(), c: '少' }
+    const restored = restoreSession(JSON.stringify(game))!
+    expect(restored.stage).toBe('question')
+    expect(restored.question).toBeUndefined()
+    expect(restored.players[1].score).toBe(0)
+  })
+  it('removes a score recorded for an old invalid question', () => {
+    const won = transition(answering(), { type: 'ANSWER_FOUND', line: answer, now: 3 })
+    won.question = { ...question(), c: '少' }
+    const repaired = restoreSession(JSON.stringify(won))!
+    expect(repaired.stage).toBe('question')
+    expect(repaired.players[1].score).toBe(0)
+    expect(repaired.records).toHaveLength(0)
+    expect(repaired.usedLineIds).not.toContain(answer.id)
+  })
   it('TC06 rejects missing target or shared characters without changing players', () => {
     expect(validateAnswerFormat(question(), '少年不识云滋味')).toContain('包含')
     expect(validateAnswerFormat(question(), '大江东去浪淘尽')).toContain('相同')
@@ -61,6 +85,17 @@ describe('poetry rules and game flow', () => {
       expect(game.setterId).toBe(0)
       expect(game.stage).toBe('question')
     }
+  })
+  it('reveals one valid reference answer as a failed round', () => {
+    const revealed = transition(answering(), { type: 'REVEAL', line: answer, now: 3 })
+    expect(revealed.stage).toBe('reveal')
+    expect(revealed.players[1].score).toBe(0)
+    expect(revealed.records[0].outcome).toBe('revealed')
+    expect(revealed.revealedAnswer?.text).toBe(answer.text)
+    const next = transition(revealed, { type: 'NEXT_AFTER_REVEAL', now: 4 })
+    expect(next.stage).toBe('question')
+    expect(next.setterId).toBe(0)
+    expect(next.carryLine).toBeUndefined()
   })
   it('TC08 repeated score events cannot add another point', () => {
     const won = transition(answering(), { type: 'ANSWER_FOUND', line: answer, now: 3 })

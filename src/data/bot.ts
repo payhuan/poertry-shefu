@@ -16,12 +16,13 @@ export async function makeBotQuestion(game: GameSession): Promise<{ question: Qu
     const all = await getLines(length)
     const options: PoetryLine[] = []
     for (const line of all) {
-      if (line.id !== a.id && !used.has(line.id) && hasSharedCharacter(a.normalized, line.normalized)) options.push(line)
+      if (line.id !== a.id && !used.has(line.id) && hasSharedCharacter(a.normalized, line.normalized)
+        && characters(line.normalized).some(char => !sourceChars.has(char))) options.push(line)
     }
     if (!options.length) continue
     const sample = options[Math.floor(Math.random() * options.length)]
-    const common = characters(sample.normalized).filter(char => sourceChars.has(char))
-    const c = common[Math.floor(Math.random() * common.length)]
+    const newChars = characters(sample.normalized).filter(char => !sourceChars.has(char))
+    const c = newChars[Math.floor(Math.random() * newChars.length)]
     const solutionCount = options.filter(line => line.normalized.includes(c)).length
     return {
       question: { id: crypto.randomUUID(), a, b: length, c, privateReference: sample.text, createdAt: Date.now() },

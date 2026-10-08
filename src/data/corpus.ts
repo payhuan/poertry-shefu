@@ -1,8 +1,9 @@
-import type { CorpusManifest, PoetryLine } from '../types'
+import type { CorpusManifest, PoetryLine, PoetryWork } from '../types'
 import { lineFits, normalize } from '../engine/poetry'
 
 const memory = new Map<number, PoetryLine[]>()
 let manifestPromise: Promise<CorpusManifest> | undefined
+const workShards = new Map<number, Promise<Record<string, PoetryWork>>>()
 const BASE = `${import.meta.env.BASE_URL}corpus/`
 
 function openDatabase(): Promise<IDBDatabase | null> {
@@ -42,6 +43,24 @@ export function getManifest(): Promise<CorpusManifest> {
     return response.json() as Promise<CorpusManifest>
   }).catch(error => { manifestPromise = undefined; throw error })
   return manifestPromise
+}
+
+export async function getPoem(line: PoetryLine): Promise<PoetryWork> {
+  if (line.sourceFile === 'manual-review') throw new Error('人工复核诗句没有收录的全诗。')
+  const manifest = await getManifest()
+  const fileIndex = manifest.files.findIndex(item => item.file === line.sourceFile)
+  if (fileIndex < 0) throw new Error('未找到这句诗的来源文件。')
+  let shard = workShards.get(fileIndex)
+  if (!shard) {
+    shard = fetch(`${BASE}poems-${fileIndex}.json`).then(async response => {
+      if (!response.ok) throw new Error('全诗加载失败。')
+      return response.json() as Promise<Record<string, PoetryWork>>
+    }).catch(error => { workShards.delete(fileIndex); throw error })
+    workShards.set(fileIndex, shard)
+  }
+  const work = (await shard)[String(line.sourceIndex)]
+  if (!work) throw new Error('未找到这句诗对应的全诗。')
+  return work
 }
 
 export async function getLines(length: number): Promise<PoetryLine[]> {

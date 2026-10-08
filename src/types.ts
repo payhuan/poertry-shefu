@@ -1,5 +1,5 @@
 export type PlayerId = 0 | 1
-export type Stage = 'question' | 'handoff' | 'answer' | 'review' | 'success' | 'finished' | 'paused'
+export type Stage = 'question' | 'handoff' | 'answer' | 'review' | 'reveal' | 'success' | 'finished' | 'paused'
 
 export interface PoetryLine {
   id: string
@@ -12,6 +12,13 @@ export interface PoetryLine {
   sourceFile: string
   sourceIndex: number
   poemId: string
+}
+
+export interface PoetryWork {
+  author: string
+  title: string
+  dynasty: string
+  paragraphs: string[]
 }
 
 export interface CorpusManifest {
@@ -70,7 +77,7 @@ export interface RoundRecord {
   prompt: string
   answer?: string
   answerLine?: PoetryLine
-  outcome: 'correct' | 'reviewed' | 'skipped' | 'timeout'
+  outcome: 'correct' | 'reviewed' | 'revealed' | 'skipped' | 'timeout'
   reviewReason?: string
   reviewedBy?: [PlayerId, PlayerId]
   time: number
@@ -88,6 +95,7 @@ export interface GameSession {
   question?: Question
   carryLine?: PoetryLine
   lastAnswer?: PoetryLine
+  revealedAnswer?: PoetryLine
   usedLineIds: string[]
   records: RoundRecord[]
   draft: string

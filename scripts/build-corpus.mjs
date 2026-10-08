@@ -37,15 +37,17 @@ let segments = 0
 let rejected = 0
 let duplicates = 0
 
-for (const file of source.files) {
+for (const [fileIndex, file] of source.files.entries()) {
   const body = await fetchPinned(file)
   const records = JSON.parse(body)
   if (!Array.isArray(records)) throw new Error(`${file}: expected an array`)
   let accepted = 0
+  const works = {}
   for (const [recordIndex, poem] of records.entries()) {
     const author = String(poem.author || '佚名').trim()
     const title = String(poem.title || poem.rhythmic || '无题').trim()
     if (!Array.isArray(poem.paragraphs)) continue
+    const dynasty = file.includes('poet.tang') ? '唐' : '宋'
     for (const paragraph of poem.paragraphs) {
       for (const text of splitLines(paragraph)) {
         segments += 1
@@ -58,16 +60,20 @@ for (const file of source.files) {
         }
         const id = hash(normalized).slice(0, 20)
         if (lines.has(id)) { duplicates += 1; continue }
-        const dynasty = file.includes('poet.tang') ? '唐' : '宋'
         lines.set(id, {
           id, text, normalized, length, author, title, dynasty,
           sourceFile: file, sourceIndex: recordIndex,
           poemId: String(poem.id || `${file}#${recordIndex}`),
         })
+        works[recordIndex] ??= {
+          author, title, dynasty,
+          paragraphs: poem.paragraphs.map(value => String(value).trim()).filter(Boolean),
+        }
         accepted += 1
       }
     }
   }
+  await writeFile(path.join(outDir, `poems-${fileIndex}.json`), JSON.stringify(works))
   fileStats.push({ file, sha256: hash(body), poems: records.length, accepted })
   console.log(`${file}: ${records.length} poems, ${accepted} new lines`)
 }

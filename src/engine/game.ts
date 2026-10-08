@@ -8,6 +8,8 @@ export type GameAction =
   | { type: 'ERROR'; message: string; now: number }
   | { type: 'ANSWER_FOUND'; line: PoetryLine; now: number }
   | { type: 'ANSWER_MISSING'; text: string; now: number }
+  | { type: 'REVEAL'; line: PoetryLine; now: number }
+  | { type: 'NEXT_AFTER_REVEAL'; now: number }
   | { type: 'REQUEST_REVIEW'; reason: string; now: number }
   | { type: 'REVIEW_RECEIVE'; now: number }
   | { type: 'REVIEW_APPROVE'; reason: string; now: number }
@@ -17,6 +19,7 @@ export type GameAction =
   | { type: 'PAUSE'; now: number }
   | { type: 'RESUME'; now: number }
   | { type: 'END'; now: number }
+  | { type: 'INVALID_QUESTION'; now: number }
 
 export function other(id: PlayerId): PlayerId { return id === 0 ? 1 : 0 }
 
@@ -109,6 +112,25 @@ export function transition(session: GameSession, action: GameAction): GameSessio
         remainingMs: session.deadlineAt ? Math.max(0, session.deadlineAt - now) : undefined,
         deadlineAt: undefined, error: '', updatedAt: now,
       }
+    case 'REVEAL': {
+      if (session.stage !== 'answer' || !session.question || !lineFits(session.question.a.normalized, session.question.b, session.question.c, action.line)) return session
+      if (session.records.some(item => item.questionId === session.question!.id)) return session
+      const answerer = other(session.setterId)
+      const players = session.players.map(player => player.id === answerer
+        ? { ...player, skipCount: player.skipCount + 1, streak: 0 }
+        : player) as GameSession['players']
+      return {
+        ...session, stage: 'reveal', players, revealedAnswer: action.line,
+        records: [...session.records, record(session, 'revealed', now, action.line)],
+        deadlineAt: undefined, remainingMs: undefined, error: '', updatedAt: now,
+      }
+    }
+    case 'NEXT_AFTER_REVEAL':
+      if (session.stage !== 'reveal') return session
+      return {
+        ...session, stage: 'question', round: session.round + 1, question: undefined,
+        carryLine: undefined, revealedAnswer: undefined, draft: '', error: '', updatedAt: now,
+      }
     case 'REQUEST_REVIEW':
       if (session.stage !== 'review' || session.review?.phase !== 'request' || !action.reason.trim()) return session
       return { ...session, review: { ...session.review, reason: action.reason.trim(), phase: 'handoff' }, updatedAt: now }
@@ -160,6 +182,21 @@ export function transition(session: GameSession, action: GameAction): GameSessio
     }
     case 'END':
       return session.stage === 'finished' ? session : { ...session, stage: 'finished', deadlineAt: undefined, updatedAt: now }
+    case 'INVALID_QUESTION': {
+      if (!session.question) return session
+      const invalidRecord = session.records.find(item => item.questionId === session.question!.id)
+      const wasScored = invalidRecord?.outcome === 'correct' || invalidRecord?.outcome === 'reviewed'
+      const players = session.players.map(player => wasScored && player.id === invalidRecord?.responderId
+        ? { ...player, score: Math.max(0, player.score - 1), correctCount: Math.max(0, player.correctCount - 1), streak: 0 }
+        : player) as GameSession['players']
+      return {
+        ...session, stage: 'question', pausedFrom: undefined, question: undefined, review: undefined,
+        players, records: session.records.filter(item => item.questionId !== invalidRecord?.questionId),
+        usedLineIds: invalidRecord?.answerLine ? session.usedLineIds.filter(id => id !== invalidRecord.answerLine!.id) : session.usedLineIds,
+        winnerId: undefined, lastAnswer: undefined, revealedAnswer: undefined, draft: '', deadlineAt: undefined, remainingMs: undefined,
+        error: '上一题的指定字出现在上一句中，题目已退回，请重新出题。', updatedAt: now,
+      }
+    }
   }
 }
 
@@ -168,6 +205,9 @@ export function restoreSession(raw: string | null): GameSession | null {
   try {
     const parsed = JSON.parse(raw) as GameSession
     if (parsed.schemaVersion !== 1 || !parsed.id || !Array.isArray(parsed.players) || parsed.players.length !== 2 || !parsed.settings) return null
+    if (parsed.question && normalize(parsed.question.a.text).includes(normalize(parsed.question.c))) {
+      return transition(parsed, { type: 'INVALID_QUESTION', now: Date.now() })
+    }
     return parsed
   } catch { return null }
 }

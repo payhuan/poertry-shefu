@@ -37,6 +37,7 @@ export function validateQuestionShape(a: string, b: number, c: string, min: numb
   if (!validHanInput(a)) return '上一句须为汉字诗句，可带标点。'
   if (!Number.isInteger(b) || b < min || b > max) return `字数须在 ${min}–${max} 之间。`
   if ([...c].length !== 1 || !/^\p{Script=Han}$/u.test(c)) return '指定字只能是一个汉字。'
+  if (normalize(a).includes(normalize(c))) return '指定字不能出现在上一句中，请换一个字。'
   return null
 }
 
