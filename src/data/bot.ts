@@ -1,7 +1,7 @@
-import { getLines, randomLine } from './corpus'
-import { characters, hasSharedCharacter } from '../engine/poetry'
+import { botOptions, countSolutions, randomLine } from './corpus'
+import { characters } from '../engine/poetry'
 import { pickLine } from '../engine/familiarity'
-import type { GameSession, PoetryLine, Question, Settings } from '../types'
+import type { GameSession, Question, Settings } from '../types'
 
 export function shouldBotSolve(difficulty: Settings['difficulty'], roll: number): boolean {
   const rate = difficulty === 'easy' ? .55 : difficulty === 'hard' ? .9 : .72
@@ -26,20 +26,19 @@ export function targetLengthOrder(min: number, max: number, random = Math.random
 export async function makeBotQuestion(game: GameSession): Promise<{ question: Question; solutionCount: number }> {
   const preferFamiliar = game.settings.questionStyle !== 'all'
   const a = game.carryLine || await randomLine(Math.random() < .5 ? 5 : 7, preferFamiliar, game.usedLineIds)
-  const used = new Set(game.usedLineIds)
   const sourceChars = new Set(characters(a.normalized))
   for (const length of targetLengthOrder(game.settings.minLength, game.settings.maxLength)) {
-    const all = await getLines(length)
-    const options: PoetryLine[] = []
-    for (const line of all) {
-      if (line.id !== a.id && !used.has(line.id) && hasSharedCharacter(a.normalized, line.normalized)
-        && characters(line.normalized).some(char => !sourceChars.has(char))) options.push(line)
+    let options = (await botOptions(a, length, game.usedLineIds, preferFamiliar))
+      .filter(line => characters(line.normalized).some(char => !sourceChars.has(char)))
+    if (!options.length && preferFamiliar) {
+      options = (await botOptions(a, length, game.usedLineIds, false))
+        .filter(line => characters(line.normalized).some(char => !sourceChars.has(char)))
     }
     if (!options.length) continue
     const sample = pickLine(options, preferFamiliar)!
     const newChars = characters(sample.normalized).filter(char => !sourceChars.has(char))
     const c = newChars[Math.floor(Math.random() * newChars.length)]
-    const solutionCount = options.filter(line => line.normalized.includes(c)).length
+    const solutionCount = await countSolutions(a.normalized, length, c, game.usedLineIds)
     return {
       question: { id: crypto.randomUUID(), a, b: length, c, privateReference: sample.text, createdAt: Date.now() },
       solutionCount,

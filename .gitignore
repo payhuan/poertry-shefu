@@ -4,6 +4,9 @@ coverage/
 playwright-report/
 test-results/
 data/cache/
+public/corpus/*.tmp
+public/corpus/*.sqlite
+public/corpus/*.sqlite.br
 *.tsbuildinfo
 *.local
 .DS_Store

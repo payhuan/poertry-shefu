@@ -24,6 +24,7 @@ export interface PoetryWork {
 
 export interface CorpusManifest {
   version: string
+  databaseParts: string[]
   repository: string
   commit: string
   license: string

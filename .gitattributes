@@ -1,0 +1,3 @@
+*.sqlite binary
+*.sqlite.br binary
+*.sqlite.br.part* binary
