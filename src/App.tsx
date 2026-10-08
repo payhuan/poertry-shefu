@@ -10,7 +10,7 @@ import type { CorpusManifest, GameSession, PlayerId, PoetryLine, PoetryWork, Que
 import type { Script } from './engine/script'
 
 type Dialog = 'rules' | 'history' | 'reveal' | 'end' | null
-const defaults: Settings = { mode: 'local', questionStyle: 'familiar', difficulty: 'normal', names: ['甲', '乙'], firstSetter: 0, winningScore: 5, timeLimit: 0, hints: true, minLength: 2, maxLength: 15 }
+const defaults: Settings = { mode: 'solo', questionStyle: 'familiar', difficulty: 'normal', names: ['甲', '系统'], firstSetter: 1, winningScore: 5, timeLimit: 0, hints: true, minLength: 2, maxLength: 15 }
 const rulesPoster = `${import.meta.env.BASE_URL}rules-intro.png`
 const pad = (n: number) => String(n).padStart(2, '0')
 const clock = (ms: number) => `${pad(Math.floor(ms / 60000))}:${pad(Math.floor((ms % 60000) / 1000))}`
