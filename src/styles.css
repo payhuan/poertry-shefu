@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
+
+:root { font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif; color: #23392e; background: #eee9dc; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+.app-shell { min-height: 100vh; background: radial-gradient(circle at 82% 18%, #e7d4ab 0, transparent 30%), linear-gradient(120deg, #f5f1e7, #e6e0d1); }
+.topbar { height: 78px; max-width: 1200px; margin: auto; padding: 0 44px; display: flex; align-items: center; border-bottom: 1px solid #2c473829; }
+.brand { font-family: 'Noto Serif SC', serif; font-weight: 700; letter-spacing: .15em; font-size: 18px; }
+.brand small { color: #aa523d; }
+.hero { max-width: 1200px; margin: auto; min-height: calc(100vh - 78px); padding: 15vh 44px 8vh; }
+.hero-overline { color: #ae664b; letter-spacing: .35em; font-size: 12px; font-weight: 700; }
+h1 { font-family: 'Noto Serif SC', serif; font-size: clamp(56px, 8vw, 112px); line-height: 1.35; letter-spacing: .06em; font-weight: 500; margin: 25px 0; }
+h1 em { color: #a34d38; font-style: normal; }
+.hero p { font-size: 17px; color: #6c796d; margin: 0 0 40px; }
+.primary-button { background: #1d4336; border: 1px solid #1d4336; color: #fff; padding: 17px 30px; min-width: 210px; text-align: left; border-radius: 4px; font-weight: 600; }
+.primary-button span { float: right; }
+@media (max-width: 650px) { .topbar { padding: 0 22px; } .hero { padding: 15vh 22px 8vh; } }
