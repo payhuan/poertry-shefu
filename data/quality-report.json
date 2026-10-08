@@ -36,26 +36,43 @@
       "sha256": "5f79a2d9011e6d414f04e51176c5d4f4c762fd784dce98b035968367b6f2ef4e",
       "poems": 1000,
       "accepted": 10264
+    },
+    {
+      "file": "全唐诗/唐诗三百首.json",
+      "sha256": "d77a145f7470da2ed2f79515944563c062ffc43fceda07f195a36ead66b7e5c7",
+      "poems": 366,
+      "accepted": 2888
+    },
+    {
+      "file": "宋词/宋词三百首.json",
+      "sha256": "ca5d74f7fdb9d5a6acc22a7c8b4395228cad4bb8be53df44c19ba83ab6983b20",
+      "poems": 280,
+      "accepted": 4035
     }
   ],
-  "segments": 56289,
-  "accepted": 54511,
-  "rejected": 152,
-  "duplicateNormalizedLines": 1626,
+  "segments": 65048,
+  "accepted": 61434,
+  "rejected": 164,
+  "duplicateNormalizedLines": 3450,
   "countsByLength": {
-    "2": 262,
-    "3": 4297,
-    "4": 8408,
-    "5": 18511,
-    "6": 2737,
-    "7": 20076,
-    "8": 129,
-    "9": 44,
-    "10": 35,
-    "11": 7,
+    "2": 302,
+    "3": 5133,
+    "4": 9947,
+    "5": 20436,
+    "6": 3290,
+    "7": 22085,
+    "8": 139,
+    "9": 48,
+    "10": 39,
+    "11": 9,
     "12": 4,
     "13": 0,
-    "14": 0,
+    "14": 1,
     "15": 1
+  },
+  "familiarityCounts": {
+    "0": 53057,
+    "1": 7934,
+    "2": 443
   }
 }

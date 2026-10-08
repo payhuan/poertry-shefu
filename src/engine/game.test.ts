@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createSession, restoreSession, transition } from './game'
 import { normalize, validateAnswerFormat, validateQuestionShape } from './poetry'
-import { shouldBotSolve } from '../data/bot'
+import { shouldBotSolve, targetLengthOrder } from '../data/bot'
 import type { GameSession, PoetryLine, Question, Settings } from '../types'
 
 const settings: Settings = {
-  mode: 'local', difficulty: 'normal', names: ['甲', '乙'], firstSetter: 0,
+  mode: 'local', questionStyle: 'familiar', difficulty: 'normal', names: ['甲', '乙'], firstSetter: 0,
   winningScore: 5, timeLimit: 30, hints: false, minLength: 2, maxLength: 15,
 }
 const line = (text: string, id = text): PoetryLine => ({
@@ -114,6 +114,11 @@ describe('poetry rules and game flow', () => {
     expect(restored.players[1].score).toBe(1)
     expect(transition(restored, { type: 'ANSWER_FOUND', line: answer, now: 4 }).records).toHaveLength(1)
   })
+  it('upgrades an existing save to familiar question preference', () => {
+    const old = answering()
+    delete (old.settings as Partial<Settings>).questionStyle
+    expect(restoreSession(JSON.stringify(old))?.settings.questionStyle).toBe('familiar')
+  })
   it('TC11 treats the same canonical line as used across source variants', () => {
     const won = transition(answering(), { type: 'ANSWER_FOUND', line: answer, now: 3 })
     expect(won.usedLineIds).toEqual([answer.id])
@@ -146,5 +151,11 @@ describe('poetry rules and game flow', () => {
     expect(shouldBotSolve('hard', .6)).toBe(true)
     expect(createSession({ ...settings, mode: 'solo' }).players[1].name).toBe('系统')
     expect(validateQuestionShape(a.text, 7, '愁', 2, 15)).toBeNull()
+  })
+  it('varies system target lengths within the configured range', () => {
+    expect(targetLengthOrder(2, 15, () => .2)[0]).toBe(5)
+    expect(targetLengthOrder(2, 15, () => .65)[0]).toBe(7)
+    expect(targetLengthOrder(7, 7, () => .5)).toEqual([7])
+    expect(targetLengthOrder(4, 6, () => .5).sort()).toEqual([4, 5, 6])
   })
 })

@@ -1,5 +1,6 @@
 import { getLines, randomLine } from './corpus'
 import { characters, hasSharedCharacter } from '../engine/poetry'
+import { pickLine } from '../engine/familiarity'
 import type { GameSession, PoetryLine, Question, Settings } from '../types'
 
 export function shouldBotSolve(difficulty: Settings['difficulty'], roll: number): boolean {
@@ -7,12 +8,27 @@ export function shouldBotSolve(difficulty: Settings['difficulty'], roll: number)
   return roll < rate
 }
 
+export function targetLengthOrder(min: number, max: number, random = Math.random): number[] {
+  const remaining = Array.from({ length: max - min + 1 }, (_, index) => min + index)
+  const order: number[] = []
+  while (remaining.length) {
+    const total = remaining.reduce((sum, length) => sum + (length === 5 || length === 7 ? 20 : 1), 0)
+    let choice = random() * total
+    const index = remaining.findIndex(length => {
+      choice -= length === 5 || length === 7 ? 20 : 1
+      return choice < 0
+    })
+    order.push(remaining.splice(index, 1)[0])
+  }
+  return order
+}
+
 export async function makeBotQuestion(game: GameSession): Promise<{ question: Question; solutionCount: number }> {
-  const a = game.carryLine || await randomLine(Math.random() < .5 ? 5 : 7)
+  const preferFamiliar = game.settings.questionStyle !== 'all'
+  const a = game.carryLine || await randomLine(Math.random() < .5 ? 5 : 7, preferFamiliar, game.usedLineIds)
   const used = new Set(game.usedLineIds)
   const sourceChars = new Set(characters(a.normalized))
-  for (const length of [5, 7, 4, 3, 6, 2, 8, 9, 10, 11, 12, 15]) {
-    if (length < game.settings.minLength || length > game.settings.maxLength) continue
+  for (const length of targetLengthOrder(game.settings.minLength, game.settings.maxLength)) {
     const all = await getLines(length)
     const options: PoetryLine[] = []
     for (const line of all) {
@@ -20,7 +36,7 @@ export async function makeBotQuestion(game: GameSession): Promise<{ question: Qu
         && characters(line.normalized).some(char => !sourceChars.has(char))) options.push(line)
     }
     if (!options.length) continue
-    const sample = options[Math.floor(Math.random() * options.length)]
+    const sample = pickLine(options, preferFamiliar)!
     const newChars = characters(sample.normalized).filter(char => !sourceChars.has(char))
     const c = newChars[Math.floor(Math.random() * newChars.length)]
     const solutionCount = options.filter(line => line.normalized.includes(c)).length

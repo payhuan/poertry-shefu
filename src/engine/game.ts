@@ -205,6 +205,7 @@ export function restoreSession(raw: string | null): GameSession | null {
   try {
     const parsed = JSON.parse(raw) as GameSession
     if (parsed.schemaVersion !== 1 || !parsed.id || !Array.isArray(parsed.players) || parsed.players.length !== 2 || !parsed.settings) return null
+    parsed.settings.questionStyle ??= 'familiar'
     if (parsed.question && normalize(parsed.question.a.text).includes(normalize(parsed.question.c))) {
       return transition(parsed, { type: 'INVALID_QUESTION', now: Date.now() })
     }

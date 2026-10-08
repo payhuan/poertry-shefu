@@ -10,7 +10,7 @@ import type { CorpusManifest, GameSession, PlayerId, PoetryLine, PoetryWork, Que
 import type { Script } from './engine/script'
 
 type Dialog = 'rules' | 'history' | 'reveal' | 'end' | null
-const defaults: Settings = { mode: 'local', difficulty: 'normal', names: ['甲', '乙'], firstSetter: 0, winningScore: 5, timeLimit: 0, hints: false, minLength: 2, maxLength: 15 }
+const defaults: Settings = { mode: 'local', questionStyle: 'familiar', difficulty: 'normal', names: ['甲', '乙'], firstSetter: 0, winningScore: 5, timeLimit: 0, hints: false, minLength: 2, maxLength: 15 }
 const pad = (n: number) => String(n).padStart(2, '0')
 const clock = (ms: number) => `${pad(Math.floor(ms / 60000))}:${pad(Math.floor((ms % 60000) / 1000))}`
 
@@ -75,7 +75,7 @@ export default function App() {
         } else if (stage === 'handoff' && other(game.setterId) === 1) {
           if (!cancelled) setGame(old => old?.id === id && old.round === round && old.stage === stage ? transition(old, { type: 'RECEIVE', now: Date.now() }) : old)
         } else if (stage === 'answer' && other(game.setterId) === 1 && game.question) {
-          const lines = await findSolutions(game.question.a.normalized, game.question.b, game.question.c, game.usedLineIds, 12)
+          const lines = await findSolutions(game.question.a.normalized, game.question.b, game.question.c, game.usedLineIds, 12, game.settings.questionStyle !== 'all')
           if (!cancelled) setGame(old => {
             if (!old || old.id !== id || old.round !== round || old.stage !== stage) return old
             return lines.length && shouldBotSolve(old.settings.difficulty, Math.random())
@@ -122,7 +122,7 @@ export default function App() {
     if (game?.stage === 'answer' && game.draft) send({ type: 'DRAFT', text: convertScript(game.draft, next), now: Date.now() })
   }
   function start(event: FormEvent) { event.preventDefault(); try { setGame(createSession(settings)); setPage('game'); setQuestionMessage('') } catch (e) { setQuestionMessage((e as Error).message) } }
-  async function pick() { setBusy(true); try { setA(convertScript((await randomLine(Math.random() < .5 ? 5 : 7)).text, script)); setQuestionMessage(''); setPreview([]) } catch (e) { setQuestionMessage((e as Error).message) } finally { setBusy(false) } }
+  async function pick() { setBusy(true); try { setA(convertScript((await randomLine(Math.random() < .5 ? 5 : 7, game?.settings.questionStyle !== 'all', game?.usedLineIds)).text, script)); setQuestionMessage(''); setPreview([]) } catch (e) { setQuestionMessage((e as Error).message) } finally { setBusy(false) } }
   async function prepare(commit: boolean) {
     if (!game || inFlight.current) return
     inFlight.current = true; setBusy(true); setQuestionMessage(''); setPreview([])
@@ -131,7 +131,7 @@ export default function App() {
       if (invalid) throw new Error(invalid)
       const source = game.carryLine || await findLine(a)
       if (!source || normalize(source.text) !== normalize(a)) throw new Error('当前题库未收录上一句，请换一条可查证的原句。')
-      const solutions = await findSolutions(source.normalized, b, c, game.usedLineIds, 12)
+      const solutions = await findSolutions(source.normalized, b, c, game.usedLineIds, 12, game.settings.questionStyle !== 'all')
       if (!solutions.length) throw new Error('当前题库没有可用答案，请调整字数、指定字或上一句。')
       if (reference.trim()) {
         const trial: Question = { id: 'trial', a: source, b, c, privateReference: '', createdAt: Date.now() }
@@ -153,12 +153,12 @@ export default function App() {
     catch (e) { send({ type: 'ERROR', message: (e as Error).message, now: Date.now() }) }
     finally { inFlight.current = false; setBusy(false) }
   }
-  async function hint() { if (!game || !question) return; setBusy(true); try { const lines = hintLines.length ? hintLines : await findSolutions(question.a.normalized, question.b, question.c, game.usedLineIds, 12); setHintLines(lines); setHintLevel(old => Math.min(2, old + 1)) } catch (e) { send({ type: 'ERROR', message: (e as Error).message, now: Date.now() }) } finally { setBusy(false) } }
+  async function hint() { if (!game || !question) return; setBusy(true); try { const lines = hintLines.length ? hintLines : await findSolutions(question.a.normalized, question.b, question.c, game.usedLineIds, 12, game.settings.questionStyle !== 'all'); setHintLines(lines); setHintLevel(old => Math.min(2, old + 1)) } catch (e) { send({ type: 'ERROR', message: (e as Error).message, now: Date.now() }) } finally { setBusy(false) } }
   async function reveal() {
     if (!game || !question || game.stage !== 'answer' || inFlight.current) return
     inFlight.current = true; setBusy(true)
     try {
-      const lines = await findSolutions(question.a.normalized, question.b, question.c, game.usedLineIds, 1)
+      const lines = await findSolutions(question.a.normalized, question.b, question.c, game.usedLineIds, 1, game.settings.questionStyle !== 'all')
       if (!lines[0]) throw new Error('参考答案暂时无法加载，请稍后重试。')
       send({ type: 'REVEAL', line: lines[0], now: Date.now() })
       setDialog(null)
@@ -178,6 +178,7 @@ export default function App() {
       <div className="two-fields">{([0, 1] as PlayerId[]).map(id => <label className="field" key={id}><span>{id ? (settings.mode === 'solo' ? '对手 · 系统' : '玩家乙 · 昵称') : '玩家甲 · 昵称'}</span><input maxLength={12} disabled={id === 1 && settings.mode === 'solo'} value={id === 1 && settings.mode === 'solo' ? '系统' : settings.names[id]} onChange={e => setSettings(old => ({ ...old, names: old.names.map((name, n) => n === id ? e.target.value : name) as [string, string] }))}/></label>)}</div>
       {settings.mode === 'solo' && <div className="setting-row"><div><strong>系统难度</strong><small>系统答题的成功率；所有出题仍需可解</small></div><div className="segmented">{([['easy','轻松'],['normal','标准'],['hard','挑战']] as const).map(([value,label]) => <button type="button" key={value} className={settings.difficulty === value ? 'selected' : ''} onClick={() => setSettings(old => ({ ...old, difficulty: value }))}>{label}</button>)}</div></div>}
       <div className="form-heading spaced"><span>02</span><h2>本局规则</h2></div>
+      <div className="setting-row"><div><strong>自动选句</strong><small>系统出题与“换一句”的选句偏好；答题仍可用全题库</small></div><div className="segmented"><button type="button" className={settings.questionStyle === 'familiar' ? 'selected' : ''} onClick={() => setSettings(old => ({ ...old, questionStyle: 'familiar' }))}>常见诗词优先</button><button type="button" className={settings.questionStyle === 'all' ? 'selected' : ''} onClick={() => setSettings(old => ({ ...old, questionStyle: 'all' }))}>全题库随机</button></div></div>
       <div className="setting-row"><div><strong>先手出题</strong><small>第一回合由谁开始？</small></div><div className="segmented">{([0, 1] as PlayerId[]).map(id => <button type="button" className={settings.firstSetter === id ? 'selected' : ''} key={id} onClick={() => setSettings(old => ({ ...old, firstSetter: id }))}>{settings.names[id] || (id ? '乙' : '甲')}</button>)}</div></div>
       <div className="setting-row"><div><strong>胜利分数</strong><small>先达到目标分数的一方获胜</small></div><div className="segmented">{([5, 10, 20, 0] as Settings['winningScore'][]).map(value => <button type="button" className={settings.winningScore === value ? 'selected' : ''} key={value} onClick={() => setSettings(old => ({ ...old, winningScore: value }))}>{value || '自由'}</button>)}</div></div>
       <div className="setting-row"><div><strong>答题时限</strong><small>交接完成后开始计时</small></div><div className="segmented">{([0, 30, 60, 120] as Settings['timeLimit'][]).map(value => <button type="button" className={settings.timeLimit === value ? 'selected' : ''} key={value} onClick={() => setSettings(old => ({ ...old, timeLimit: value }))}>{value ? `${value}秒` : '不限'}</button>)}</div></div>

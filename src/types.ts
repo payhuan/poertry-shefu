@@ -12,6 +12,7 @@ export interface PoetryLine {
   sourceFile: string
   sourceIndex: number
   poemId: string
+  familiarity?: 0 | 1 | 2
 }
 
 export interface PoetryWork {
@@ -33,6 +34,7 @@ export interface CorpusManifest {
 
 export interface Settings {
   mode: 'local' | 'solo'
+  questionStyle: 'familiar' | 'all'
   difficulty: 'easy' | 'normal' | 'hard'
   names: [string, string]
   firstSetter: PlayerId

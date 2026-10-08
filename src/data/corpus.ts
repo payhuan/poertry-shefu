@@ -1,5 +1,6 @@
 import type { CorpusManifest, PoetryLine, PoetryWork } from '../types'
 import { lineFits, normalize } from '../engine/poetry'
+import { pickLine } from '../engine/familiarity'
 
 const memory = new Map<number, PoetryLine[]>()
 let manifestPromise: Promise<CorpusManifest> | undefined
@@ -85,22 +86,23 @@ export async function findLine(raw: string): Promise<PoetryLine | undefined> {
   return lines.find(line => line.normalized === normalized)
 }
 
-export async function findSolutions(a: string, b: number, c: string, usedIds: string[], limit = 8): Promise<PoetryLine[]> {
+export async function findSolutions(a: string, b: number, c: string, usedIds: string[], limit = 8, preferFamiliar = false): Promise<PoetryLine[]> {
   const lines = await getLines(b)
   const used = new Set(usedIds)
   const matches: PoetryLine[] = []
   for (const line of lines) {
     if (!used.has(line.id) && lineFits(a, b, c, line)) {
       matches.push(line)
-      if (matches.length >= limit) break
+      if (!preferFamiliar && matches.length >= limit) break
     }
   }
-  return matches
+  return preferFamiliar ? matches.sort((left, right) => (right.familiarity ?? 0) - (left.familiarity ?? 0)).slice(0, limit) : matches
 }
 
-export async function randomLine(length: 5 | 7 = 5): Promise<PoetryLine> {
-  const lines = await getLines(length)
+export async function randomLine(length: 5 | 7 = 5, preferFamiliar = false, usedIds: string[] = []): Promise<PoetryLine> {
+  const used = new Set(usedIds)
+  const lines = (await getLines(length)).filter(line => !used.has(line.id))
   if (!lines.length) throw new Error('题库中没有可用诗句。')
-  return lines[Math.floor(Math.random() * lines.length)]
+  return pickLine(lines, preferFamiliar)!
 }
 

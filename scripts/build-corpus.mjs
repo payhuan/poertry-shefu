@@ -47,7 +47,10 @@ for (const [fileIndex, file] of source.files.entries()) {
     const author = String(poem.author || '佚名').trim()
     const title = String(poem.title || poem.rhythmic || '无题').trim()
     if (!Array.isArray(poem.paragraphs)) continue
-    const dynasty = file.includes('poet.tang') ? '唐' : '宋'
+    const dynasty = file.includes('poet.tang') || file.endsWith('唐诗三百首.json') ? '唐' : '宋'
+    const tags = Array.isArray(poem.tags) ? poem.tags.map(String) : []
+    const familiarity = tags.some(tag => /小学古诗|初中古诗|高中古诗|[一二三四五六七八九]年级|高[一二三]年级/u.test(tag))
+      ? 2 : file.endsWith('三百首.json') || tags.some(tag => tag.includes('诗三百首') || tag.includes('词三百首')) ? 1 : 0
     for (const paragraph of poem.paragraphs) {
       for (const text of splitLines(paragraph)) {
         segments += 1
@@ -59,12 +62,19 @@ for (const [fileIndex, file] of source.files.entries()) {
           continue
         }
         const id = hash(normalized).slice(0, 20)
-        if (lines.has(id)) { duplicates += 1; continue }
-        lines.set(id, {
+        if (lines.has(id)) {
+          const previous = lines.get(id)
+          if (familiarity > (previous.familiarity ?? 0)) previous.familiarity = familiarity
+          duplicates += 1
+          continue
+        }
+        const line = {
           id, text, normalized, length, author, title, dynasty,
           sourceFile: file, sourceIndex: recordIndex,
           poemId: String(poem.id || `${file}#${recordIndex}`),
-        })
+        }
+        if (familiarity) line.familiarity = familiarity
+        lines.set(id, line)
         works[recordIndex] ??= {
           author, title, dynasty,
           paragraphs: poem.paragraphs.map(value => String(value).trim()).filter(Boolean),
@@ -79,6 +89,8 @@ for (const [fileIndex, file] of source.files.entries()) {
 }
 
 const counts = {}
+const familiarityCounts = { 0: 0, 1: 0, 2: 0 }
+for (const line of lines.values()) familiarityCounts[line.familiarity ?? 0] += 1
 for (let length = 2; length <= 15; length += 1) {
   const shard = [...lines.values()].filter(line => line.length === length).sort((a, b) => a.id.localeCompare(b.id))
   counts[length] = shard.length
@@ -97,7 +109,7 @@ await writeFile(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, nul
 await writeFile(path.join(root, 'data/quality-report.json'), JSON.stringify({
   sourceCommit: source.commit, sourceFiles: fileStats,
   segments, accepted: lines.size, rejected, duplicateNormalizedLines: duplicates,
-  countsByLength: counts,
+  countsByLength: counts, familiarityCounts,
 }, null, 2) + '\n')
 await writeFile(path.join(outDir, 'LICENSE.txt'), await fetchPinned('LICENSE'))
 console.log(`Built ${lines.size} unique lines; rejected ${rejected}, merged ${duplicates} duplicates`)
