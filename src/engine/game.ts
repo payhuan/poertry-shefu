@@ -27,6 +27,9 @@ export type GameAction =
 export function other(id: PlayerId): PlayerId { return id === 0 ? 1 : 0 }
 
 export function createSession(settings: Settings, now = Date.now()): GameSession {
+  if (!Number.isInteger(settings.minLength) || !Number.isInteger(settings.maxLength) || settings.minLength < 2 || settings.maxLength > 15 || settings.minLength > settings.maxLength) {
+    throw new Error('诗句字数须为 2–15 之间的整数，且最少字数不能大于最多字数。')
+  }
   const names = (settings.mode === 'solo' ? [settings.names[0], '系统'] : settings.names).map(value => value.trim()) as [string, string]
   if (!names[0] || !names[1] || names[0] === names[1] || names.some(value => [...value].length > 12)) {
     throw new Error('两位玩家的昵称须不同，且各为 1–12 个字。')

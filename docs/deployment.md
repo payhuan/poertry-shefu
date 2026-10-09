@@ -2,7 +2,7 @@
 
 ## 发布内容
 
-执行 `pnpm install --frozen-lockfile`、`pnpm test`、`pnpm build`，将整个 `dist/` 上传到静态托管。根目录发布使用默认 base；子目录部署需用 `pnpm build -- --base=/子目录/`。HTML、JS、CSS、规则海报和 `corpus/seed*.json` 均需保留。不要部署源码 `index.html`。
+执行 `pnpm install --frozen-lockfile`、`pnpm test`、`pnpm build`，将整个 `dist/` 上传到静态托管。根目录发布使用默认 base；子目录部署需用 `pnpm build --base=/子目录/`。HTML、JS、CSS、规则海报和 `corpus/seed*.json` 均需保留。不要部署源码 `index.html`。
 
 没有服务器端接口，没有 SQLite 文件或题库分片，没有运行时环境变量、密钥或 `/api/poetry`。网页直接向搜韵发送简单 GET 请求。
 

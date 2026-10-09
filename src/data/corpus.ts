@@ -11,7 +11,7 @@ let manifestPromise: Promise<CorpusManifest> | undefined
 let seedPromise: Promise<{ lines: PoetryLine[]; works: Map<string, SeedWork> }> | undefined
 
 export function getManifest(): Promise<CorpusManifest> {
-  manifestPromise ??= fetch(`${BASE}seed-manifest.json`).then(async response => {
+  manifestPromise ??= fetch(`${BASE}seed-manifest.json`, { signal: AbortSignal.timeout(15000) }).then(async response => {
     if (!response.ok) throw new Error('轻量题池清单加载失败，请刷新重试。')
     return response.json() as Promise<CorpusManifest>
   }).catch(error => { manifestPromise = undefined; throw error })
@@ -20,7 +20,7 @@ export function getManifest(): Promise<CorpusManifest> {
 
 async function seed() {
   seedPromise ??= getManifest().then(async manifest => {
-    const response = await fetch(`${BASE}${manifest.seedFile}`)
+    const response = await fetch(`${BASE}${manifest.seedFile}`, { signal: AbortSignal.timeout(15000) })
     if (!response.ok) throw new Error('轻量题池加载失败，请刷新重试。')
     const data = await response.json() as Seed
     if (data.schemaVersion !== 1 || !Array.isArray(data.lines) || !Array.isArray(data.works)) throw new Error('轻量题池格式异常。')

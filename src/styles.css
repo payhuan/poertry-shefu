@@ -15,3 +15,74 @@
 .rules-details summary{cursor:pointer;color:#355440;font-size:13px;font-weight:700}
 .rules-details .rules{padding-top:8px}
 @media(max-width:600px){.rules-modal{padding:12px;max-height:96vh}.rules-poster{margin-top:12px}.rules-poster p{font-size:11px}}
+
+/* Shared interaction and responsive details. */
+button,a,input,select,textarea,summary{ -webkit-tap-highlight-color:transparent }
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid #a6503c;outline-offset:4px}
+button:disabled{cursor:not-allowed}
+.home-copy .scope-note{display:inline-block;margin:0 0 14px;padding:7px 11px;border:1px solid #b77a5c45;background:#b77a5c08;letter-spacing:.12em}
+.home-features{display:flex;flex-wrap:wrap;gap:9px 16px;margin:0 0 27px;font-size:12px;color:#627064;line-height:1.8}
+.home-features span+span:before{content:"·";margin-right:16px;color:#a89b80}
+.home-buttons{flex-wrap:wrap}
+.home-buttons .outline-button{min-width:150px}
+.segmented button{min-height:38px;transition:background .15s,color .15s,box-shadow .15s}
+.setup-summary{margin-top:28px;padding:16px 18px;background:#eef1e9;border-left:3px solid #77917b}
+.setup-summary>span{font-size:10px;letter-spacing:.16em;color:#6e7e6e}
+.setup-summary p{margin:6px 0 0;color:#355440;font-size:12px;line-height:1.8}
+.setting-row small,.panel-heading p{color:#6c786b}
+.connection-note{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 20px;color:#657766;font-size:11px;line-height:1.8;text-align:center;letter-spacing:.03em}
+.connection-note:before{content:"";width:5px;height:5px;flex:none;border-radius:50%;background:#789279}
+.connection-note.offline{color:#936e42}
+.connection-note.offline:before{background:#b9935e}
+.query-notice{background:#edf3eb;border-color:#cbdcc5;color:#466b4f;line-height:1.7;font-size:13px}
+.source-note{color:#637565;font-size:12px;line-height:1.8}
+.source-link{min-height:32px;text-align:left}
+.prompt-card blockquote{overflow-wrap:anywhere}
+.checks span{font-size:12px;color:#6f7c6d;border:1px solid #e2e7dc;border-radius:3px;line-height:1.5}
+.checks span.pass{color:#345f40;border-color:#c6ddc7}
+.answer-input textarea{line-height:1.7;min-height:116px;resize:vertical}
+.answer-actions{border-top:1px solid #e3e7dc;padding-top:20px}
+.answer-actions .text-button{min-height:40px}
+.paused-panel>.primary-button,.paused-panel>.outline-button{margin:12px 5px 0}
+.paused-panel>.status-box{max-width:580px;margin:20px auto 12px;padding:14px 18px;line-height:1.8}
+.paused-panel>.text-button{display:block;margin:18px auto 0}
+.game-footer{display:flex;flex-wrap:wrap;justify-content:center;gap:0 5px;line-height:1.8;padding:22px 5px;font-size:11px;color:#74806e}
+.modal-backdrop{padding:18px;overscroll-behavior:contain}
+.modal{overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#b8c4ad transparent}
+.modal-head{position:sticky;top:0;z-index:1;background:#fffdf7;box-shadow:0 -16px 0 #fffdf7;padding-top:4px}
+.modal-head h2{line-height:1.5;overflow-wrap:anywhere;padding-right:12px}
+.icon-button{flex:none;min-width:40px;min-height:40px}
+.poem-verses p{overflow-wrap:anywhere}
+.rules-details summary{min-height:40px;line-height:1.8}
+@media(max-width:600px){
+  .topbar{height:auto;min-height:68px;gap:10px;padding:12px 16px}
+  .topbar nav{gap:11px;flex:none}
+  .topbar nav button{min-height:36px;font-size:11px;letter-spacing:0}
+  .brand{gap:8px}.brand>span:last-child{white-space:nowrap}
+  .home-copy .scope-note{font-size:11px;line-height:1.8;margin-bottom:12px}
+  .home-features{gap:6px 12px;font-size:11px;margin-bottom:22px}
+  .home-features span+span:before{margin-right:12px}
+  .home-buttons{flex-direction:row;max-width:none;gap:10px}
+  .home-buttons .primary-button,.home-buttons .outline-button{flex:1;min-width:0;padding:15px 14px}
+  .setting-row{gap:12px;padding:17px 0}
+  .segmented button{min-height:42px;padding:9px 10px}
+  .setup-summary{padding:13px 14px}.setup-summary p{font-size:11px}
+  .connection-note{margin:12px 0 16px;font-size:10px;padding:0 5px}
+  .play-panel,.review-panel{padding:20px 17px 24px}
+  .panel-heading{margin-bottom:22px}.panel-heading h2{font-size:27px;line-height:1.5}
+  .prompt-card{padding:17px;margin-bottom:22px}.prompt-card blockquote{font-size:24px;line-height:1.7}
+  .source-note{font-size:11px}.source-link span{display:inline-block;margin-left:4px}
+  .checks{gap:7px}.checks span{font-size:11px;padding:7px 8px}
+  .answer-input textarea{font-size:20px;min-height:104px}
+  .answer-actions{gap:12px;padding-top:16px;margin-top:20px}
+  .answer-actions>div{width:100%;justify-content:space-between;gap:10px}
+  .answer-actions>.primary-button{width:100%;min-height:48px;justify-content:center;gap:25px}
+  .paused-panel,.thinking-panel{min-height:340px;padding:34px 18px 40px}
+  .paused-panel h2,.thinking-panel h2{font-size:27px}
+  .paused-panel>.primary-button,.paused-panel>.outline-button{display:flex;width:100%;justify-content:center;margin:12px 0 0}
+  .modal-backdrop{padding:12px}.modal{padding:18px;max-height:calc(100dvh - 24px)}
+  .modal-head h2{font-size:22px}.rules-modal{padding:12px}
+  .game-footer{font-size:10px;padding:19px 10px}
+}
+@media(max-width:380px){.topbar{padding:10px 12px;gap:5px}.topbar nav{gap:7px}.brand small{font-size:7px}.topbar nav button{font-size:10px}.prompt-meta{gap:18px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
