@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "version": "0bc03e5342b382d5",
+  "repository": "https://github.com/chinese-poetry/chinese-poetry",
+  "commit": "b8594f81a89752241442f2ce267d6f66f96704ee",
+  "license": "MIT",
+  "totalLines": 9615,
+  "totalWorks": 1246,
+  "counts": {
+    "2": 66,
+    "3": 1122,
+    "4": 1870,
+    "5": 2552,
+    "6": 722,
+    "7": 3244,
+    "8": 12,
+    "9": 14,
+    "10": 9,
+    "11": 3,
+    "14": 1
+  },
+  "seedFile": "seed.json",
+  "seedBytes": 1865042,
+  "sha256": "0bc03e5342b382d598e0117767318b542c85e5e2ea978b63844d170eaeaa6b65"
+}

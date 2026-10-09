@@ -13,9 +13,12 @@ export interface PoetryLine {
   sourceIndex: number
   poemId: string
   familiarity?: 0 | 1 | 2
+  work?: PoetryWork
 }
 
 export interface PoetryWork {
+  id?: string
+  provider?: 'seed' | 'souyun'
   author: string
   title: string
   dynasty: string
@@ -24,7 +27,9 @@ export interface PoetryWork {
 
 export interface CorpusManifest {
   version: string
-  databaseParts: string[]
+  seedFile: string
+  totalWorks: number
+  seedBytes: number
   repository: string
   commit: string
   license: string
@@ -61,6 +66,7 @@ export interface Question {
   b: number
   c: string
   privateReference: string
+  referenceLine?: PoetryLine
   createdAt: number
 }
 
@@ -100,6 +106,8 @@ export interface GameSession {
   lastAnswer?: PoetryLine
   revealedAnswer?: PoetryLine
   usedLineIds: string[]
+  usedLineTexts?: string[]
+  queryWait?: { requestId: string; kind: 'answer' | 'reference'; status: 'pending' | 'failed'; message?: string }
   records: RoundRecord[]
   draft: string
   error: string
