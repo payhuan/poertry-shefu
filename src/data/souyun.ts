@@ -129,7 +129,7 @@ export async function searchPoems(key: string, budget: SearchBudget, maxPages = 
         if (stopWhen && page.works.some(stopWhen)) return { works, complete: false }
       } catch (error) { return { works, complete: false, message: (error as Error).message } }
     }
-    return { works, complete: false, message: '检索结果较多，本次未查完，请重试或换一句。' }
+    return { works, complete: false, message: '检索结果较多，本次未查完，请重试。' }
   }))
   const works: PoetryWork[] = []
   let complete = true, message: string | undefined

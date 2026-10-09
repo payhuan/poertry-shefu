@@ -188,7 +188,10 @@ export default function App() {
         solution = await findLine(reference, budget)
         if (!solution) throw new Error('本次检索未找到私有参考答案，请修改或留空重新检查。')
       }
-      solution ||= (await findSolutions(source.normalized, b, c, usedTexts(game), 1, true, budget))[0]
+      if (!solution) {
+        try { solution = (await findSolutions(source.normalized, b, c, usedTexts(game), 1, true, budget))[0] }
+        catch (e) { throw new Error(`${(e as Error).message}请在“私有参考答案”中给出一条符合条件的诗句，以便直接核实。`) }
+      }
       if (!solution) throw new Error('本次检索未找到可用答案，请调整条件或重试；这不表示题目一定无解。')
       if (usedTexts(game).includes(solution.normalized)) throw new Error('参考答案本局已用于得分，请换一句。')
       if (gameRef.current?.id !== target.id || gameRef.current.round !== target.round || gameRef.current.stage !== 'question') return
