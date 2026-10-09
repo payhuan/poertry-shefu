@@ -134,12 +134,3 @@ export async function randomLine(length: 5 | 7 = 5, preferFamiliar = false, used
   if (!selected) throw new Error('内置及缓存作品中没有可用诗句，请联网重试或调整设置。')
   return selected
 }
-
-export async function countSolutions(a: string, b: number, c: string, used: string[]): Promise<number> {
-  return (await findSolutions(a, b, c, used, 100)).length
-}
-
-export async function botOptions(a: PoetryLine, length: number, used: string[], preferFamiliar: boolean): Promise<PoetryLine[]> {
-  const budget = new SearchBudget()
-  try { return await candidateLines(a, length, length, used, !preferFamiliar, budget) } finally { budget.close() }
-}

@@ -10,15 +10,15 @@ const settings: Settings = {
 }
 const line = (text: string, id = text): PoetryLine => ({
   id, text, normalized: normalize(text), length: [...normalize(text)].length,
-  author: '作者', title: '作品', dynasty: '宋', sourceFile: 'test.json', sourceIndex: 0, poemId: id,
+  author: '作者', title: '作品', dynasty: '宋', sourceFile: 'test.json', sourceIndex: 0, poemId: id, work: { id, provider: 'seed', author: '作者', title: '作品', dynasty: '宋', paragraphs: [text] },
 })
 const a = line('遍插茱萸少一人', 'a')
 const answer = line('少年不识愁滋味', 'answer')
-const question = (id = 'q1'): Question => ({ id, a, b: 7, c: '愁', privateReference: '其他参考句', createdAt: 1 })
+const question = (id = 'q1'): Question => ({ id, a, b: 7, c: '愁', privateReference: '其他参考句', referenceLine: answer, createdAt: 1 })
 
 function answering(): GameSession {
   let game = createSession(settings, 0)
-  game = transition(game, { type: 'SET_QUESTION', question: question(), solutionCount: 3, now: 1 })
+  game = transition(game, { type: 'SET_QUESTION', question: question(), now: 1 })
   return transition(game, { type: 'RECEIVE', now: 2 })
 }
 
@@ -45,14 +45,14 @@ describe('poetry rules and game flow', () => {
     expect(game.players[1].score).toBe(0)
   })
   it('TC05 blocks a question with no available solution', () => {
-    const game = transition(createSession(settings, 0), { type: 'SET_QUESTION', question: question(), solutionCount: 0, now: 1 })
+    const game = transition(createSession(settings, 0), { type: 'SET_QUESTION', question: { ...question(), referenceLine: undefined }, now: 1 })
     expect(game.stage).toBe('question')
     expect(game.error).toContain('可用答案')
   })
   it('rejects a target character already present in the previous line', () => {
     expect(validateQuestionShape('樽前当日客', 5, '日', 2, 15)).toContain('不能出现在上一句')
     const invalid = { ...question(), c: '少' }
-    const game = transition(createSession(settings, 0), { type: 'SET_QUESTION', question: invalid, solutionCount: 2, now: 1 })
+    const game = transition(createSession(settings, 0), { type: 'SET_QUESTION', question: invalid, now: 1 })
     expect(game.stage).toBe('question')
     expect(game.error).toContain('不能出现在上一句')
   })
@@ -157,5 +157,70 @@ describe('poetry rules and game flow', () => {
     expect(targetLengthOrder(2, 15, () => .65)[0]).toBe(7)
     expect(targetLengthOrder(7, 7, () => .5)).toEqual([7])
     expect(targetLengthOrder(4, 6, () => .5).sort()).toEqual([4, 5, 6])
+  })
+  it('holds the remaining time through a failed lookup and resumes on demand', () => {
+    let game = transition(answering(), { type: 'DRAFT', text: answer.text, now: 1002 })
+    game = transition(game, { type: 'QUERY_START', requestId: 'lookup', kind: 'answer', now: 1002 })
+    expect(game.remainingMs).toBe(29000)
+    expect(game.deadlineAt).toBeUndefined()
+    game = transition(game, { type: 'QUERY_FAIL', requestId: 'lookup', message: '断网', now: 16002 })
+    expect(game.stage).toBe('paused')
+    expect(game.draft).toBe(answer.text)
+    expect(game.players[1].score).toBe(0)
+    expect(game.records).toHaveLength(0)
+    game = transition(game, { type: 'RESUME', now: 20000 })
+    expect(game.deadlineAt).toBe(49000)
+  })
+  it('scores a successful lookup once and ignores obsolete request ids', () => {
+    let game = transition(answering(), { type: 'QUERY_START', requestId: 'new', kind: 'answer', now: 1002 })
+    expect(transition(game, { type: 'QUERY_COMPLETE', requestId: 'old', result: 'found', line: answer, now: 1100 })).toBe(game)
+    game = transition(game, { type: 'QUERY_COMPLETE', requestId: 'new', result: 'found', line: answer, now: 20000 })
+    expect(game.players[1].score).toBe(1)
+    expect(transition(game, { type: 'QUERY_COMPLETE', requestId: 'new', result: 'found', line: answer, now: 21000 }).players[1].score).toBe(1)
+  })
+  it('restores an interrupted lookup paused and rejects its late result', () => {
+    const pending = transition(answering(), { type: 'QUERY_START', requestId: 'before-refresh', kind: 'answer', now: 1002 })
+    const restored = restoreSession(JSON.stringify(pending))!
+    expect(restored.stage).toBe('paused')
+    expect(restored.remainingMs).toBe(29000)
+    expect(restored.queryWait?.status).toBe('failed')
+    expect(transition(restored, { type: 'QUERY_COMPLETE', requestId: 'before-refresh', result: 'found', line: answer, now: 99999 }).players[1].score).toBe(0)
+  })
+  it('times out an already expired submission before starting a query', () => {
+    const game = transition(answering(), { type: 'QUERY_START', requestId: 'too-late', kind: 'answer', now: 30002 })
+    expect(game.records[0].outcome).toBe('timeout')
+    expect(game.queryWait).toBeUndefined()
+    expect(game.players[1].score).toBe(0)
+  })
+  it('deduplicates identical poetry text across providers and manual review', () => {
+    const won = transition(answering(), { type: 'ANSWER_FOUND', line: answer, now: 3 })
+    const another = answering()
+    another.usedLineTexts = won.usedLineTexts
+    const result = transition(another, { type: 'ANSWER_FOUND', line: { ...answer, id: 'souyun:different-source', text: '少年不識愁滋味' }, now: 4 })
+    expect(result.players[1].score).toBe(0)
+    expect(result.error).toContain('已用于得分')
+    let review = transition(another, { type: 'ANSWER_MISSING', text: answer.text, now: 4 })
+    review = transition(review, { type: 'REQUEST_REVIEW', reason: '作品', now: 5 })
+    review = transition(review, { type: 'REVIEW_RECEIVE', now: 6 })
+    expect(transition(review, { type: 'REVIEW_APPROVE', reason: '核对', now: 7 }).players[1].score).toBe(0)
+  })
+  it('migrates an old question without discarding its draft, points or history', () => {
+    const old = answering()
+    delete old.question!.referenceLine
+    delete old.usedLineTexts
+    old.draft = answer.text
+    const restored = restoreSession(JSON.stringify(old))!
+    expect(restored.stage).toBe('paused')
+    expect(restored.pausedFrom).toBe('answer')
+    expect(restored.draft).toBe(answer.text)
+    expect(restored.players).toEqual(old.players)
+    expect(restored.records).toEqual(old.records)
+  })
+  it('pausing a request invalidates its response and keeps private answers out of exported records', () => {
+    let game = transition(answering(), { type: 'QUERY_START', requestId: 'paused', kind: 'answer', now: 1002 })
+    game = transition(game, { type: 'PAUSE', now: 1100 })
+    game = transition(game, { type: 'RESUME', now: 1200 })
+    expect(transition(game, { type: 'QUERY_COMPLETE', requestId: 'paused', result: 'found', line: answer, now: 1300 }).players[1].score).toBe(0)
+    expect(game.records).toHaveLength(0)
   })
 })

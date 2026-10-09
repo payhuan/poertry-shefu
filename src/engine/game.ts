@@ -2,7 +2,10 @@ import type { GameSession, PlayerId, PoetryLine, Question, RoundRecord, Settings
 import { lineFits, normalize, validateAnswerFormat, validateQuestionShape } from './poetry'
 
 export type GameAction =
-  | { type: 'SET_QUESTION'; question: Question; solutionCount: number; now: number }
+  | { type: 'SET_QUESTION'; question: Question; now: number }
+  | { type: 'QUERY_START'; requestId: string; kind: 'answer' | 'reference'; now: number }
+  | { type: 'QUERY_FAIL'; requestId: string; message: string; now: number }
+  | { type: 'QUERY_COMPLETE'; requestId: string; result: 'found' | 'missing' | 'question' | 'reference'; line?: PoetryLine; question?: Question; now: number }
   | { type: 'RECEIVE'; now: number }
   | { type: 'DRAFT'; text: string; now: number }
   | { type: 'ERROR'; message: string; now: number }
@@ -31,7 +34,7 @@ export function createSession(settings: Settings, now = Date.now()): GameSession
   return {
     schemaVersion: 1, id: crypto.randomUUID(), stage: 'question', settings: { ...settings, names },
     players: names.map((name, id) => ({ id: id as PlayerId, name, score: 0, correctCount: 0, skipCount: 0, streak: 0 })) as GameSession['players'],
-    setterId: settings.firstSetter, round: 1, usedLineIds: [], records: [], draft: '', error: '',
+    setterId: settings.firstSetter, round: 1, usedLineIds: [], usedLineTexts: [], records: [], draft: '', error: '',
     createdAt: now, updatedAt: now,
   }
 }
@@ -59,8 +62,9 @@ function score(session: GameSession, line: PoetryLine, outcome: 'correct' | 'rev
   return {
     ...session, stage: won ? 'finished' : 'success', players, lastAnswer: line,
     usedLineIds: [...new Set([...session.usedLineIds, line.id])],
+    usedLineTexts: [...new Set([...usedTexts(session), normalize(line.text)])],
     records: [...session.records, record(session, outcome, now, line, reason)],
-    review: undefined, deadlineAt: undefined, remainingMs: undefined,
+    review: undefined, deadlineAt: undefined, remainingMs: undefined, queryWait: undefined,
     winnerId: won ? answerer : undefined, error: '', updatedAt: now,
   }
 }
@@ -76,18 +80,51 @@ function fail(session: GameSession, outcome: 'skipped' | 'timeout', now: number)
     ...session, stage: 'question', players, round: session.round + 1,
     records: [...session.records, record(session, outcome, now)],
     question: undefined, carryLine: undefined, lastAnswer: undefined,
-    draft: '', error: '', review: undefined, deadlineAt: undefined, remainingMs: undefined, updatedAt: now,
+    draft: '', error: '', review: undefined, deadlineAt: undefined, remainingMs: undefined, queryWait: undefined, updatedAt: now,
   }
+}
+
+export function usedTexts(session: GameSession): string[] {
+  return session.usedLineTexts || session.records.filter(record => record.outcome === 'correct' || record.outcome === 'reviewed')
+    .map(record => normalize(record.answerLine?.text || record.answer || '')).filter(Boolean)
 }
 
 export function transition(session: GameSession, action: GameAction): GameSession {
   const now = action.now
+  if (session.queryWait?.status === 'pending' && !['QUERY_COMPLETE', 'QUERY_FAIL', 'PAUSE', 'END'].includes(action.type)) return session
   switch (action.type) {
+    case 'QUERY_START': {
+      if (session.stage === 'finished' || session.queryWait?.status === 'pending') return session
+      const stage = session.stage === 'paused' ? session.pausedFrom || 'question' : session.stage
+      if (stage !== 'answer' && stage !== 'question' && action.kind !== 'reference') return session
+      if (stage === 'answer' && session.deadlineAt && now >= session.deadlineAt) return fail(session, 'timeout', now)
+      return { ...session, stage, pausedFrom: undefined, queryWait: { requestId: action.requestId, kind: action.kind, status: 'pending' },
+        remainingMs: session.deadlineAt ? Math.max(0, session.deadlineAt - now) : session.remainingMs,
+        deadlineAt: undefined, error: '', updatedAt: now }
+    }
+    case 'QUERY_FAIL':
+      if (session.queryWait?.requestId !== action.requestId || session.queryWait.status !== 'pending') return session
+      return { ...session, pausedFrom: session.stage, stage: 'paused', queryWait: { ...session.queryWait, status: 'failed', message: action.message }, error: action.message, updatedAt: now }
+    case 'QUERY_COMPLETE': {
+      if (session.queryWait?.requestId !== action.requestId || session.queryWait.status !== 'pending' || session.stage === 'paused') return session
+      const ready = { ...session, queryWait: undefined, remainingMs: session.stage === 'answer' ? undefined : session.remainingMs,
+        deadlineAt: session.stage === 'answer' && session.remainingMs !== undefined ? now + session.remainingMs : undefined, updatedAt: now }
+      if (action.result === 'question' && action.question) return transition(ready, { type: 'SET_QUESTION', question: action.question, now })
+      if (action.result === 'reference' && action.line?.work && session.question && lineFits(session.question.a.normalized, session.question.b, session.question.c, action.line)) {
+        return { ...ready, question: { ...session.question, referenceLine: action.line } }
+      }
+      if (action.result === 'found' && action.line) return transition(ready, { type: 'ANSWER_FOUND', line: action.line, now })
+      if (action.result === 'missing') return session.settings.mode === 'local'
+        ? transition(ready, { type: 'ANSWER_MISSING', text: session.draft, now })
+        : { ...ready, error: '本次搜韵检索未找到此句，这不表示诗句不存在。可修改答案或揭晓参考答案。' }
+      return { ...ready, error: '查询结果无法用于当前题目，请重试。' }
+    }
     case 'SET_QUESTION': {
       if (session.stage !== 'question') return session
       const q = action.question
       const error = validateQuestionShape(q.a.text, q.b, q.c, session.settings.minLength, session.settings.maxLength)
-      if (error || action.solutionCount < 1 || (session.carryLine && session.carryLine.id !== q.a.id)) {
+      if (error || !q.referenceLine?.work || !lineFits(q.a.normalized, q.b, q.c, q.referenceLine) ||
+          usedTexts(session).includes(q.referenceLine.normalized) || (session.carryLine && normalize(session.carryLine.text) !== normalize(q.a.text))) {
         return { ...session, error: error || '题目尚无可用答案，请调整字数或指定字。', updatedAt: now }
       }
       return { ...session, question: q, stage: 'handoff', draft: '', error: '', updatedAt: now }
@@ -98,11 +135,13 @@ export function transition(session: GameSession, action: GameAction): GameSessio
     case 'DRAFT':
       return session.stage === 'answer' ? { ...session, draft: action.text, error: '', updatedAt: now } : session
     case 'ERROR':
-      return session.stage === 'answer' || session.stage === 'question' ? { ...session, error: action.message, updatedAt: now } : session
+      return session.stage === 'answer' || session.stage === 'question' || session.stage === 'paused' ? { ...session, error: action.message, updatedAt: now } : session
     case 'ANSWER_FOUND':
+      if (session.queryWait) return session
+      if (session.deadlineAt && now >= session.deadlineAt) return fail(session, 'timeout', now)
       if (session.stage !== 'answer' || !session.question || validateAnswerFormat(session.question, action.line.text)) return session
       if (!lineFits(session.question.a.normalized, session.question.b, session.question.c, action.line)) return session
-      if (session.usedLineIds.includes(action.line.id)) return { ...session, error: '这句诗本局已用于得分，请换一句。', updatedAt: now }
+      if (usedTexts(session).includes(normalize(action.line.text))) return { ...session, error: '这句诗本局已用于得分，请换一句。', updatedAt: now }
       return score(session, action.line, 'correct', now)
     case 'ANSWER_MISSING':
       if (session.stage !== 'answer' || !session.question) return session
@@ -113,6 +152,8 @@ export function transition(session: GameSession, action: GameAction): GameSessio
         deadlineAt: undefined, error: '', updatedAt: now,
       }
     case 'REVEAL': {
+      if (session.queryWait) return session
+      if (session.deadlineAt && now >= session.deadlineAt) return fail(session, 'timeout', now)
       if (session.stage !== 'answer' || !session.question || !lineFits(session.question.a.normalized, session.question.b, session.question.c, action.line)) return session
       if (session.records.some(item => item.questionId === session.question!.id)) return session
       const answerer = other(session.setterId)
@@ -145,7 +186,7 @@ export function transition(session: GameSession, action: GameAction): GameSessio
         length: [...session.review.normalized].length, author: '双方复核', title: '人工裁定', dynasty: '待核',
         sourceFile: 'manual-review', sourceIndex: -1, poemId: session.question.id,
       }
-      if (session.usedLineIds.includes(line.id)) return { ...session, error: '这句诗已经使用过。', updatedAt: now }
+      if (usedTexts(session).includes(line.normalized)) return { ...session, error: '这句诗已经使用过。', updatedAt: now }
       return score(session, line, 'reviewed', now, `${session.review.reason}；出题者认可：${action.reason.trim()}`)
     }
     case 'REVIEW_DECLINE':
@@ -153,7 +194,7 @@ export function transition(session: GameSession, action: GameAction): GameSessio
       return {
         ...session, stage: 'answer', review: undefined,
         deadlineAt: session.remainingMs === undefined ? undefined : now + session.remainingMs,
-        remainingMs: undefined, error: `未通过复核：${action.reason.trim()}。可修改答案或放弃本题。`, updatedAt: now,
+        remainingMs: undefined, error: `未通过复核：${action.reason.trim()}。可修改答案或揭晓本题。`, updatedAt: now,
       }
     case 'FAIL': return fail(session, action.outcome, now)
     case 'NEXT':
@@ -168,20 +209,20 @@ export function transition(session: GameSession, action: GameAction): GameSessio
       return {
         ...session, pausedFrom: session.stage, stage: 'paused',
         remainingMs: session.stage === 'answer' && session.deadlineAt ? Math.max(0, session.deadlineAt - now) : session.remainingMs,
-        deadlineAt: undefined, updatedAt: now,
+        deadlineAt: undefined, queryWait: session.queryWait ? { ...session.queryWait, status: 'failed', message: '查询已暂停，请重试。' } : undefined, updatedAt: now,
       }
     case 'RESUME': {
       if (session.stage !== 'paused') return session
       const stage: Stage = session.pausedFrom || 'question'
       return {
-        ...session, stage, pausedFrom: undefined,
+        ...session, stage, pausedFrom: undefined, queryWait: undefined, error: '',
         deadlineAt: stage === 'answer' && session.remainingMs !== undefined ? now + session.remainingMs : undefined,
         remainingMs: stage === 'answer' ? undefined : session.remainingMs,
         updatedAt: now,
       }
     }
     case 'END':
-      return session.stage === 'finished' ? session : { ...session, stage: 'finished', deadlineAt: undefined, updatedAt: now }
+      return session.stage === 'finished' ? session : { ...session, stage: 'finished', deadlineAt: undefined, queryWait: undefined, updatedAt: now }
     case 'INVALID_QUESTION': {
       if (!session.question) return session
       const invalidRecord = session.records.find(item => item.questionId === session.question!.id)
@@ -193,6 +234,8 @@ export function transition(session: GameSession, action: GameAction): GameSessio
         ...session, stage: 'question', pausedFrom: undefined, question: undefined, review: undefined,
         players, records: session.records.filter(item => item.questionId !== invalidRecord?.questionId),
         usedLineIds: invalidRecord?.answerLine ? session.usedLineIds.filter(id => id !== invalidRecord.answerLine!.id) : session.usedLineIds,
+        usedLineTexts: usedTexts(session).filter(text => text !== normalize(invalidRecord?.answerLine?.text || '')),
+        queryWait: undefined,
         winnerId: undefined, lastAnswer: undefined, revealedAnswer: undefined, draft: '', deadlineAt: undefined, remainingMs: undefined,
         error: '上一题的指定字出现在上一句中，题目已退回，请重新出题。', updatedAt: now,
       }
@@ -206,8 +249,20 @@ export function restoreSession(raw: string | null): GameSession | null {
     const parsed = JSON.parse(raw) as GameSession
     if (parsed.schemaVersion !== 1 || !parsed.id || !Array.isArray(parsed.players) || parsed.players.length !== 2 || !parsed.settings) return null
     parsed.settings.questionStyle ??= 'familiar'
+    parsed.usedLineTexts = usedTexts(parsed)
     if (parsed.question && normalize(parsed.question.a.text).includes(normalize(parsed.question.c))) {
       return transition(parsed, { type: 'INVALID_QUESTION', now: Date.now() })
+    }
+    if (parsed.queryWait || (parsed.question && !parsed.question.referenceLine && !['finished', 'success', 'reveal'].includes(parsed.stage))) {
+      const now = Date.now()
+      if (parsed.stage !== 'paused') {
+        parsed.pausedFrom = parsed.stage
+        parsed.remainingMs = parsed.deadlineAt ? Math.max(0, parsed.deadlineAt - now) : parsed.remainingMs
+        parsed.stage = 'paused'
+      }
+      parsed.deadlineAt = undefined
+      if (parsed.queryWait) parsed.queryWait = { ...parsed.queryWait, status: 'failed', message: '查询被刷新中断，请重试或继续对局。' }
+      parsed.error = parsed.question && !parsed.question.referenceLine ? '旧题目需要补齐参考答案，请联网重试。' : '查询已中断，进度和剩余时间已保存。'
     }
     return parsed
   } catch { return null }

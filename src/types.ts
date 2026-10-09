@@ -67,6 +67,7 @@ export interface Question {
   c: string
   privateReference: string
   referenceLine?: PoetryLine
+  selectionNotice?: string
   createdAt: number
 }
 
