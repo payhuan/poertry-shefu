@@ -3,6 +3,7 @@ import { characters, hasSharedCharacter, normalize } from '../engine/poetry'
 import { cachedWork, cachedWorks, rememberWork } from './work-cache'
 import { fetchWork, LookupError, searchPoems, SearchBudget, workLines } from './souyun'
 import { pickLine } from '../engine/familiarity'
+import { dynastyOrder } from '../engine/chronology'
 
 const BASE = `${import.meta.env.BASE_URL}corpus/`
 type SeedWork = PoetryWork & { id: string; sourceFile: string; sourceIndex: number }
@@ -42,7 +43,12 @@ async function availableLines(): Promise<PoetryLine[]> {
 }
 
 function unique(lines: PoetryLine[]): PoetryLine[] {
-  return [...new Map(lines.map(line => [line.normalized, line])).values()]
+  const selected = new Map<string, PoetryLine>()
+  for (const line of lines) {
+    const previous = selected.get(line.normalized)
+    if (!previous || dynastyOrder(line.dynasty) < dynastyOrder(previous.dynasty)) selected.set(line.normalized, line)
+  }
+  return [...selected.values()]
 }
 
 function unused(line: PoetryLine, used: string[]): boolean {
@@ -58,21 +64,23 @@ export async function lookupLine(raw: string, sharedBudget?: SearchBudget): Prom
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return { status: 'incomplete', message: '当前离线，此句不在内置或缓存作品中。请联网后重试。' }
   const budget = sharedBudget || new SearchBudget()
   try {
-    const result = await searchPoems(normalized, budget, 3, work => workLines(work).some(line => line.normalized === normalized))
-    const found = result.works.flatMap(workLines).find(line => line.normalized === normalized)
+    const result = await searchPoems(normalized, budget, budget.remaining)
+    const found = unique(result.works.flatMap(workLines)).find(line => line.normalized === normalized)
     if (found) return { status: 'found', line: found }
     let complete = result.complete, message = result.message
     // An inline variant note can interrupt a full-sentence keyword in the source text.
     if (complete && [...normalized].length > 2) {
       const chars = [...normalized]
       const keys = [...new Set([chars.slice(-2).join(''), chars.slice(0, 2).join('')])]
+      const candidates: PoetryLine[] = []
       for (const key of keys) {
         if (budget.remaining < 1 || budget.controller.signal.aborted) { complete = false; break }
-        const fallback = await searchPoems(key, budget, 1, work => workLines(work).some(line => line.normalized === normalized))
-        const variant = fallback.works.flatMap(workLines).find(line => line.normalized === normalized)
-        if (variant) return { status: 'found', line: variant }
+        const fallback = await searchPoems(key, budget, 1)
+        candidates.push(...fallback.works.flatMap(workLines))
         complete &&= fallback.complete; message ||= fallback.message
       }
+      const variant = unique(candidates).find(line => line.normalized === normalized)
+      if (variant) return { status: 'found', line: variant }
     }
     return complete ? { status: 'not-found' } : { status: 'incomplete', message: message || '本次检索未完成，请重试。' }
   } finally { if (!sharedBudget) budget.close() }

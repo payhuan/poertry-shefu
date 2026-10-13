@@ -20,6 +20,28 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('static corpus and online lookup', () => {
+  it('chooses the earliest dynasty for a repeated verse across pages and retains that choice offline', async () => {
+    online = url => {
+      const index = Number(url.searchParams.get('pageNo'))
+      const dynasty = ['清', '明', '唐'][index]
+      return { ShiData: [{ ...poem, Id: 100 + index, Dynasty: dynasty, Author: `作者${index}` }], Count: 3, PageSize: 1, PageNo: index }
+    }
+    const { lookupLine, getPoem } = await import('./corpus')
+    const result = await lookupLine('留连戏蝶时时舞')
+    expect(result.status).toBe('found')
+    if (result.status !== 'found') throw Error('Expected earliest matching source')
+    expect(result.line.dynasty).toBe('唐')
+    expect((await getPoem(result.line)).id).toBe('souyun:102')
+    expect(calls.filter(url => url.includes('api.sou-yun.cn'))).toHaveLength(3)
+    vi.stubGlobal('navigator', { onLine: false })
+    const cached = await lookupLine('留連戲蝶時時舞')
+    expect(cached.status === 'found' && cached.line.dynasty).toBe('唐')
+  })
+  it('keeps a stable source for tied dynasties and prefers known dates over unknown dates', async () => {
+    online = () => page([{ ...poem, Id: 1, Dynasty: '不详' }, { ...poem, Id: 2, Dynasty: '唐' }, { ...poem, Id: 3, Dynasty: '唐' }])
+    const result = await (await import('./corpus')).lookupLine('留连戏蝶时时舞')
+    expect(result.status === 'found' && result.line.poemId).toBe('souyun:2')
+  })
   it('finds the unique Ming dynasty result for 行也思君 without unrelated fallback searches', async () => {
     online = url => {
       expect(url.searchParams.has('dynasty')).toBe(false)
@@ -85,7 +107,7 @@ describe('static corpus and online lookup', () => {
     online = url => page([poem], 999, Number(url.searchParams.get('pageNo')))
     const start = calls.length
     expect((await lookupLine('未出现在诗里的句子')).status).toBe('incomplete')
-    expect(calls.length - start).toBe(3)
+    expect(calls.length - start).toBe(6)
   })
   it('keeps local answers available offline and explains missing target lengths', async () => {
     vi.stubGlobal('navigator', { onLine: false })
