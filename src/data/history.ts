@@ -3,54 +3,22 @@ import type { GameSession } from '../types'
 const SNAPSHOT_KEY = 'poetry-shefu-current-v1'
 const FALLBACK_KEY = 'poetry-shefu-history-v1'
 
-export function saveSnapshot(session: GameSession | null): void {
-  try {
-    if (session) localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(session))
-    else localStorage.removeItem(SNAPSHOT_KEY)
-  } catch { /* The game stays usable when storage is unavailable. */ }
-}
-
-export function readSnapshot(): string | null {
-  try { return localStorage.getItem(SNAPSHOT_KEY) } catch { return null }
-}
-
-function openHistory(): Promise<IDBDatabase | null> {
-  if (!('indexedDB' in window)) return Promise.resolve(null)
+export function clearStoredGameRecords(): Promise<boolean> {
+  let cleared = true
+  for (const key of [SNAPSHOT_KEY, FALLBACK_KEY]) {
+    try { localStorage.removeItem(key) } catch { cleared = false }
+  }
+  if (typeof indexedDB === 'undefined') return Promise.resolve(cleared)
   return new Promise(resolve => {
-    const request = indexedDB.open('poetry-shefu-history', 1)
-    request.onupgradeneeded = () => request.result.createObjectStore('sessions', { keyPath: 'id' })
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => resolve(null)
-  })
-}
-
-export async function saveFinished(session: GameSession): Promise<void> {
-  const db = await openHistory()
-  if (db) {
-    await new Promise<void>(resolve => {
-      const tx = db.transaction('sessions', 'readwrite')
-      tx.objectStore('sessions').put(session)
-      tx.oncomplete = () => { db.close(); resolve() }
-      tx.onerror = () => { db.close(); resolve() }
-    })
-  } else {
+    const timer = setTimeout(() => resolve(false), 1500)
+    const finish = (success: boolean) => { clearTimeout(timer); resolve(success && cleared) }
     try {
-      const items = JSON.parse(localStorage.getItem(FALLBACK_KEY) || '[]') as GameSession[]
-      localStorage.setItem(FALLBACK_KEY, JSON.stringify([session, ...items.filter(item => item.id !== session.id)].slice(0, 20)))
-    } catch { /* No persistent history available. */ }
-  }
-}
-
-export async function listFinished(): Promise<GameSession[]> {
-  const db = await openHistory()
-  if (db) {
-    return new Promise(resolve => {
-      const request = db.transaction('sessions', 'readonly').objectStore('sessions').getAll()
-      request.onsuccess = () => { db.close(); resolve((request.result as GameSession[]).sort((a, b) => b.updatedAt - a.updatedAt)) }
-      request.onerror = () => { db.close(); resolve([]) }
-    })
-  }
-  try { return JSON.parse(localStorage.getItem(FALLBACK_KEY) || '[]') as GameSession[] } catch { return [] }
+      const request = indexedDB.deleteDatabase('poetry-shefu-history')
+      request.onsuccess = () => finish(true)
+      request.onerror = () => finish(false)
+      request.onblocked = () => finish(false)
+    } catch { finish(false) }
+  })
 }
 
 export function exportSessionText(session: GameSession): string {
