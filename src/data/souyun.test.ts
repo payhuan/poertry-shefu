@@ -6,6 +6,21 @@ beforeEach(() => { vi.resetModules() })
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('Souyun public API boundaries', () => {
+  it('reads positioned variant comments without accepting ordinary annotations as verses', async () => {
+    const { parsePage, workLines } = await import('./souyun')
+    const parsed = parsePage({ ...page, ShiData: [{ ...poem, Clauses: [
+      { Content: '谁为不平事。', Comments: [{ Content: '一作有', Type: 'Text', Index: 2 }, { Content: '普通注释', Type: 'Text', Index: 5 }] },
+      { Content: '今日把似君，', Comments: [{ Content: '一作示。一作事', Type: 'Text', Index: 4 }] },
+      { Content: '春风又绿江南岸。', Comments: [{ Content: '一作东风', Type: 'Text', Index: 2 }, { Content: '一作吹绿', Type: 'Text', Index: 4 }, { Content: '一作错误', Type: 'Text', Index: 99 }] },
+    ] }] }, 0)
+    const lines = workLines(parsed.works[0]).map(line => line.normalized)
+    expect(lines).toContain('谁有不平事')
+    expect(lines).toContain('谁为不平事')
+    expect(lines).toContain('今日把示君')
+    expect(lines).toContain('今日把事君')
+    expect(lines).toContain('东风吹绿江南岸')
+    expect(lines.some(line => line.includes('普通注释') || line.includes('错误'))).toBe(false)
+  })
   it('accepts all combinations of annotated variants and preserves the displayed source', async () => {
     const { parsePage, workLines, splitClauses } = await import('./souyun')
     const original = '乡音难（一作无）改鬓（一作面）毛衰。'

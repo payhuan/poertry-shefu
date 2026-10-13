@@ -56,6 +56,27 @@ type Page = { works: PoetryWork[]; count: number; pageNo: number; pageSize: numb
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const text = (value: unknown): string => typeof value === 'string' ? value.replace(/<[^>]*>/g, '').trim() : ''
 
+function clauseText(clause: Record<string, unknown>): string {
+  const content = text(clause.Content)
+  const notes = new Map<number, string[]>()
+  if (Array.isArray(clause.Comments)) for (const comment of clause.Comments) {
+    if (!object(comment) || comment.Type !== 'Text' || !Number.isInteger(comment.Index)) continue
+    const index = Number(comment.Index)
+    if (index < 1 || index > content.length) continue
+    const alternatives = text(comment.Content).split(/[。；;]/u).flatMap(part => {
+      const match = part.trim().match(/^一作\s*[「“]?([\p{Script=Han}、，/]+)[」”]?$/u)
+      return match ? match[1].split(/[、，/]/u).filter(Boolean) : []
+    })
+    if (alternatives.length) notes.set(index, [...(notes.get(index) || []), ...alternatives])
+  }
+  // API indices locate notes immediately after the characters they replace.
+  let annotated = content
+  for (const [index, alternatives] of [...notes].sort(([a], [b]) => b - a)) {
+    annotated = annotated.slice(0, index) + `（一作${[...new Set(alternatives)].join('、')}）` + annotated.slice(index)
+  }
+  return annotated
+}
+
 export function parsePage(value: unknown, requestedPage: number): Page {
   // The public endpoint returns JSON null for an empty search.
   if (value === null) return { works: [], count: 0, pageNo: requestedPage, pageSize: 20 }
@@ -71,7 +92,7 @@ export function parsePage(value: unknown, requestedPage: number): Page {
     }
     const paragraphs = item.Clauses.map(clause => {
       if (!object(clause) || typeof clause.Content !== 'string') throw new LookupError('搜韵返回的诗句资料不完整。')
-      return text(clause.Content)
+      return clauseText(clause)
     })
     if (!paragraphs.length || paragraphs.some(paragraph => !paragraph)) throw new LookupError('搜韵返回的作品正文为空。')
     works.push({ id: `souyun:${item.Id}`, provider: 'souyun', author: text(item.Author), title: text(item.Title.Content), dynasty: item.Dynasty, paragraphs })

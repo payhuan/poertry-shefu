@@ -20,6 +20,25 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('static corpus and online lookup', () => {
+  it('verifies 谁有不平事 and its supplied answer within the same request budget', async () => {
+    online = url => {
+      const key = url.searchParams.get('key')
+      if (key === '谁有不平事') return page([{ ...poem, Id: 1, Author: '贾岛', Title: { Content: '剑客' }, Clauses: [{ Content: '谁为不平事。', Comments: [{ Content: '一作有', Type: 'Text', Index: 2 }] }] }])
+      if (key === '天若有情天亦老') return page([{ ...poem, Id: 2, Author: '李贺', Dynasty: '中唐', Title: { Content: '金铜仙人辞汉歌' }, Clauses: [{ Content: '天若有情天亦老。' }] }])
+      throw Error('Unexpected fallback search')
+    }
+    const { findLine } = await import('./corpus')
+    const { SearchBudget } = await import('./souyun')
+    const budget = new SearchBudget()
+    try {
+      const source = (await findLine('谁有不平事', budget))!
+      const answer = (await findLine('天若有情天亦老', budget))!
+      expect(source.author).toBe('贾岛')
+      expect(answer.author).toBe('李贺')
+      expect(lineFits(source.normalized, 7, '天', answer)).toBe(true)
+      expect(budget.remaining).toBe(4)
+    } finally { budget.close() }
+  })
   it('chooses the earliest dynasty for a repeated verse across pages and retains that choice offline', async () => {
     online = url => {
       const index = Number(url.searchParams.get('pageNo'))

@@ -206,19 +206,23 @@ export default function App() {
     try {
       const invalid = validateQuestionShape(a, b, c, game.settings.minLength, game.settings.maxLength)
       if (invalid) throw new Error(invalid)
-      const source = game.carryLine || await findLine(a, budget)
+      const source = game.carryLine || await findLine(a, budget).catch(error => {
+        throw new Error(`上一句诗检索失败或未完成：${(error as Error).message}`)
+      })
       if (!source || normalize(source.text) !== normalize(a)) throw new Error('本次检索未找到上一句，请换一条可查证的诗词原句。')
       let solution: PoetryLine | undefined
       if (reference.trim()) {
         const trial: Question = { id: 'trial', a: source, b, c, privateReference: '', createdAt: Date.now() }
         const error = validateAnswerFormat(trial, reference)
         if (error) throw new Error(`私有参考答案不合规则：${error}`)
-        solution = await findLine(reference, budget)
+        solution = await findLine(reference, budget).catch(error => {
+          throw new Error(`私有参考答案检索失败或未完成：${(error as Error).message}`)
+        })
         if (!solution) throw new Error('本次检索未找到私有参考答案，请修改或留空重新检查。')
       }
       if (!solution) {
         try { solution = (await findSolutions(source.normalized, b, c, usedTexts(game), 1, true, budget))[0] }
-        catch (e) { throw new Error(`${(e as Error).message}请在“私有参考答案”中给出一条符合条件的诗句，以便直接核实。`) }
+        catch (e) { throw new Error(`可用答案检索失败或未完成：${(e as Error).message}请在“私有参考答案”中给出一条符合条件的诗句，以便直接核实。`) }
       }
       if (!solution) throw new Error('本次检索未找到可用答案，请调整条件或重试；这不表示题目一定无解。')
       if (usedTexts(game).includes(solution.normalized)) throw new Error('参考答案本局已用于得分，请换一句。')
