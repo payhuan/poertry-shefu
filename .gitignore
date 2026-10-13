@@ -1,5 +1,8 @@
 node_modules/
 dist/
+dist-hosting-smoke/
+dist-hosting-smoke.zip
+.wrangler/
 coverage/
 playwright-report/
 test-results/
