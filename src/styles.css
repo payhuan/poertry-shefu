@@ -85,4 +85,6 @@ button:disabled{cursor:not-allowed}
   .game-footer{font-size:10px;padding:19px 10px}
 }
 @media(max-width:380px){.topbar{padding:10px 12px;gap:5px}.topbar nav{gap:7px}.brand small{font-size:7px}.topbar nav button{font-size:10px}.prompt-meta{gap:18px}}
+.reveal-prompt{text-align:left;margin:26px 0}
+.candidate-note .source-link{display:block;margin-top:10px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
