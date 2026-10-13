@@ -87,4 +87,5 @@ button:disabled{cursor:not-allowed}
 @media(max-width:380px){.topbar{padding:10px 12px;gap:5px}.topbar nav{gap:7px}.brand small{font-size:7px}.topbar nav button{font-size:10px}.prompt-meta{gap:18px}}
 .reveal-prompt{text-align:left;margin:26px 0}
 .candidate-note .source-link{display:block;margin-top:10px}
+.poem-entry-line{background:#f3e2b9;color:#923e2f;padding:3px 5px;border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}

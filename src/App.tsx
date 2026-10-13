@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { findLine, findSolutions, getManifest, getPoem, lookupLine, randomLine } from './data/corpus'
-import { SearchBudget } from './data/souyun'
+import { SearchBudget, splitClauses } from './data/souyun'
 import { makeBotQuestion, shouldBotSolve } from './data/bot'
 import { clearStoredGameRecords, exportSessionText } from './data/history'
 import { createSession, other, transition, usedTexts } from './engine/game'
@@ -47,6 +47,24 @@ export function QuestionCard({ question, onOpen, script, revealed = false }: { q
 }
 export function AnswerExample({ line, onOpen, script }: { line: PoetryLine; onOpen: (line: PoetryLine) => void; script: Script }) {
   return <div className="candidate-note">可用答案示例：{convertScript(line.text, script)} <small>（只在出题阶段显示）</small><Source line={line} onOpen={onOpen} script={script}/></div>
+}
+export function PoemParagraph({ paragraph, entryText }: { paragraph: string; entryText: string }) {
+  const segments: string[] = []
+  let segment = '', depth = 0
+  for (const char of paragraph) {
+    segment += char
+    if (/[（(]/u.test(char)) depth++
+    if (/[）)]/u.test(char)) depth = Math.max(0, depth - 1)
+    if (!depth && /[，。！？；、,.!?;：:\n\r]/u.test(char)) { segments.push(segment); segment = '' }
+  }
+  if (segment) segments.push(segment)
+  const entry = normalize(entryText)
+  return <p>{segments.map((text, index) => {
+    let matches = false
+    try { matches = Boolean(entry) && splitClauses([text]).some(clause => normalize(clause) === entry) }
+    catch { /* An unparseable annotation must not prevent viewing the original poem. */ }
+    return matches ? <mark className="poem-entry-line" aria-label="入口诗句" key={index}>{text}</mark> : text
+  })}</p>
 }
 function Scoreboard({ game, now }: { game: GameSession; now: number }) {
   const left = game.players[0], right = game.players[1]
@@ -312,7 +330,7 @@ export default function App() {
       <footer className="game-footer">内置题池 · <a href="https://github.com/chinese-poetry/chinese-poetry" target="_blank" rel="noreferrer">chinese-poetry</a> · MIT 许可 · 固定版本 {manifest?.commit.slice(0, 8) || '加载中'} · 在线检索 <a href="https://sou-yun.cn/" target="_blank" rel="noreferrer">搜韵</a> {loadError && <span className="inline-error">{loadError}</span>}</footer>
     </main>}
 
-    {sourceLine && <Modal title={`《${convertScript(sourceLine.title, script)}》全诗`} close={() => setSourceLine(null)}><div className="poem-source">{displayedWork ? <><p className="poem-byline">{displayedWork.dynasty} · {displayedWork.author}</p><div className="poem-verses">{displayedWork.paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div><p className="poem-provenance">{sourceWork?.provider === 'souyun' ? <>来源：<a href={`https://sou-yun.cn/Query.aspx?type=poem&id=${sourceWork.id?.slice(7)}`} target="_blank" rel="noreferrer">搜韵 · 查看原文 ↗</a></> : <>来源：chinese-poetry · 固定版本 {manifest?.commit.slice(0, 8) || '加载中'}</>}</p></> : sourceError ? <><p className="status-box error">{sourceError}</p><button className="outline-button" onClick={() => setSourceReload(old => old + 1)}>重试加载</button></> : <p className="poem-loading">正在打开诗卷…</p>}</div></Modal>}
+    {sourceLine && <Modal title={`《${convertScript(sourceLine.title, script)}》全诗`} close={() => setSourceLine(null)}><div className="poem-source">{displayedWork ? <><p className="poem-byline">{displayedWork.dynasty} · {displayedWork.author}</p><div className="poem-verses">{displayedWork.paragraphs.map((paragraph, index) => <PoemParagraph key={index} paragraph={paragraph} entryText={sourceLine.text}/>)}</div><p className="poem-provenance">{sourceWork?.provider === 'souyun' ? <>来源：<a href={`https://sou-yun.cn/Query.aspx?type=poem&id=${sourceWork.id?.slice(7)}`} target="_blank" rel="noreferrer">搜韵 · 查看原文 ↗</a></> : <>来源：chinese-poetry · 固定版本 {manifest?.commit.slice(0, 8) || '加载中'}</>}</p></> : sourceError ? <><p className="status-box error">{sourceError}</p><button className="outline-button" onClick={() => setSourceReload(old => old + 1)}>重试加载</button></> : <p className="poem-loading">正在打开诗卷…</p>}</div></Modal>}
 
     {dialog === 'rules' && <Modal title="玩法规则" close={() => setDialog(null)} wide><div className="rules-poster"><a href={rulesPoster} target="_blank" rel="noopener noreferrer" aria-label="放大查看玩法规则图片"><img src={rulesPoster} alt="诗词射覆玩法规则图：出题者给出诗句、字数和指定字；答题者接出符合条件的真实诗句，答对得一分"/></a><p>轻触图片可放大查看。在线检索由搜韵提供；离线可用内置和缓存作品。图中的接龙示例用于说明玩法，实际作答以游戏判题为准。</p></div><details className="rules-details"><summary>文字版规则与补充说明</summary><div className="rules"><p>出题者给出诗句 <b>a</b>、字数 <b>b</b> 和指定字 <b>c</b>；答题者寻找新的古诗词独立句 <b>e</b>。</p><ol><li>指定字 <b>c</b> 不能出现在上一句 <b>a</b> 中。</li><li>新句恰好有 <b>b</b> 个汉字，标点与空格不计。</li><li>新句与上一句至少有一个共同汉字。</li><li>新句须包含指定汉字 <b>c</b>，并且能在内置题池、缓存作品或搜韵中核实为诗词原句。</li></ol><p>出题者的参考答案不是唯一答案。答对得 1 分；揭晓答案或超时视为失败，不计分。完整在线检索未找到时，本地双人可由双方复核。联网查询期间暂停计时；查询失败不算答错，可重试。离线时可使用内置和已缓存作品。答对后轮换出题，正确答案成为下一题的上一句。</p><div className="tip-box"><span>例</span><p>「遍插茱萸少一人」 / 7 字 / 指定「愁」 → 「少年不识愁滋味」。两句共有「少」字，而「愁」不在上一句中。</p></div></div></details><button className="primary-button modal-primary" onClick={() => setDialog(null)}>明白了 <span>✓</span></button></Modal>}
     {dialog === 'history' && <Modal title="对局记录" close={() => setDialog(null)}><p className="modal-copy">记录仅在当前页面临时保留，不写入浏览器存储；刷新或关闭页面后清除。</p><div className="history-list">{history.length ? history.map(item => <div className="history-item" key={item.id}><div><strong>{item.players[0].name} {item.players[0].score} : {item.players[1].score} {item.players[1].name}</strong><small>{new Date(item.updatedAt).toLocaleString('zh-CN')} · {item.records.length} 回</small></div><button onClick={() => download(item)}>导出 ↗</button></div>) : <div className="empty-state">尚无已结束的对局。下一场诗会，从你开始。</div>}</div></Modal>}
