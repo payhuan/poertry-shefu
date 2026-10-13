@@ -24,3 +24,18 @@ Wrangler 需要 Cloudflare 账号授权。首次上传选择新建独立的题�
 未登录、未取得实际部署地址、或只通过本地测试时，不能宣称公网部署成功。
 
 官方资料：[直接上传](https://developers.cloudflare.com/pages/get-started/direct-upload/)、[静态响应头配置](https://developers.cloudflare.com/pages/configuration/headers/)。
+
+## 腾讯云 COS 实际试传（2026-10-13）
+
+Cloudflare 登录未成功，改在腾讯云 COS 完成小分片试传。用户已自行开通 COS 并接受按量计费协议。
+
+- 测试桶：`poetry-shefu-smoke-20261013-1505430510`，广州（`ap-guangzhou`），单 AZ。桶本身私有读写。
+- 上传 `sample.json`、`manifest.json`、`LICENSE.txt`，三个对象设为公有读、私有写；标准存储。不启用 CDN、全球加速、日志、版本控制或其他付费附加功能。
+- 分片：8 首作品、89 条诗句，16,127 字节。公开地址：[sample.json](https://poetry-shefu-smoke-20261013-1505430510.cos.ap-guangzhou.myqcloud.com/sample.json)。
+- COS 控制台配置 CORS：Origin `*`；Methods `GET`、`HEAD`；Allow-Headers `*`；保留 Vary: Origin。没有开放跨域写入方法。Cloudflare 的 `_headers` 文件不能代替 COS 控制台 CORS 配置，因此没有上传它。
+- 匿名 HTTPS 读取返回 200；携带本地 Origin 请求时，返回 `Access-Control-Allow-Origin: *`。下载字节数、作品数、诗句数与 SHA-256 均与本地清单一致。
+- 浏览器从 `http://127.0.0.1:4174/` 读取 COS：页面明确显示“跨域读取通过”，SHA-256 校验通过；本次两文件读取与校验耗时约 403 ms，不能视为所有网络的速度承诺。
+- 未上传测试 HTML，测试页由本地静态服务提供；COS 只存静态题库数据，不需要启用静态网站功能或运行服务端程序。
+- 游戏仍使用已有题池与搜韵。试传没有迁移全量数据、没有切换正式判题逻辑，也没有验证最终游戏平台的 CSP/网络沙盒。
+
+后续可将全量索引及作品按小分片存到 COS。正式发布前需要游戏的真实托管地址，以验证该页面允许访问此题库域名。存储免费额度仅抵扣适用的标准存储容量，请求和外网下载按实际用量计费；全量公开发布前应评估流量费用。
