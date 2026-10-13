@@ -69,7 +69,6 @@ export function parsePage(value: unknown, requestedPage: number): Page {
         typeof item.Dynasty !== 'string' || !text(item.Author) || !text(item.Title.Content)) {
       throw new LookupError('搜韵返回的作品资料不完整，请稍后重试。')
     }
-    if (item.Dynasty !== '唐' && item.Dynasty !== '宋') continue
     const paragraphs = item.Clauses.map(clause => {
       if (!object(clause) || typeof clause.Content !== 'string') throw new LookupError('搜韵返回的诗句资料不完整。')
       return text(clause.Content)
@@ -149,26 +148,20 @@ async function request(url: string, budget: SearchBudget): Promise<unknown> {
 export type SearchResult = { works: PoetryWork[]; complete: boolean; message?: string }
 
 export async function searchPoems(key: string, budget: SearchBudget, maxPages = 3, stopWhen?: (work: PoetryWork) => boolean): Promise<SearchResult> {
-  const results = await Promise.allSettled([7, 8].map(async dynasty => {
-    const works: PoetryWork[] = []
-    for (let pageNo = 0; pageNo < maxPages; pageNo++) {
-      const params = new URLSearchParams({ key, scope: '3', dynasty: String(dynasty), jsonType: 'true', pageNo: String(pageNo) })
-      try {
-        const page = parsePage(await request(`${SOUYUN_API}?${params}`, budget), pageNo)
-        for (const work of page.works) { works.push(work); await rememberWork(work) }
-        if ((pageNo + 1) * page.pageSize >= page.count) return { works, complete: true }
-        if (stopWhen && page.works.some(stopWhen)) return { works, complete: false }
-      } catch (error) { return { works, complete: false, message: (error as Error).message } }
-    }
-    return { works, complete: false, message: '检索结果较多，本次未查完，请重试。' }
-  }))
   const works: PoetryWork[] = []
-  let complete = true, message: string | undefined
-  for (const result of results) {
-    if (result.status === 'fulfilled') { works.push(...result.value.works); complete &&= result.value.complete; message ||= result.value.message }
-    else { complete = false; message ||= '搜韵查询失败，请重试。' }
+  const result = (complete: boolean, message?: string): SearchResult => ({
+    works: [...new Map(works.map(work => [work.id, work])).values()], complete, message,
+  })
+  for (let pageNo = 0; pageNo < maxPages; pageNo++) {
+    const params = new URLSearchParams({ key, scope: '3', jsonType: 'true', pageNo: String(pageNo) })
+    try {
+      const page = parsePage(await request(`${SOUYUN_API}?${params}`, budget), pageNo)
+      for (const work of page.works) { works.push(work); await rememberWork(work) }
+      if ((pageNo + 1) * page.pageSize >= page.count) return result(true)
+      if (stopWhen && page.works.some(stopWhen)) return result(false)
+    } catch (error) { return result(false, (error as Error).message) }
   }
-  return { works: [...new Map(works.map(work => [work.id, work])).values()], complete, message }
+  return result(false, '检索结果较多，本次未查完，请重试。')
 }
 
 export async function fetchWork(id: string): Promise<PoetryWork> {
@@ -178,7 +171,7 @@ export async function fetchWork(id: string): Promise<PoetryWork> {
     const params = new URLSearchParams({ key: id.slice(7), jsonType: 'true' })
     const page = parsePage(await request(`${SOUYUN_API}?${params}`, budget), 0)
     const work = page.works.find(work => work.id === id)
-    if (!work) throw new LookupError('未找到对应的唐宋作品。')
+    if (!work) throw new LookupError('未找到对应的作品。')
     await rememberWork(work)
     return work
   } finally { budget.close() }

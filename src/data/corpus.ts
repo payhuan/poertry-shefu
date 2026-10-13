@@ -67,7 +67,7 @@ export async function lookupLine(raw: string, sharedBudget?: SearchBudget): Prom
       const chars = [...normalized]
       const keys = [...new Set([chars.slice(-2).join(''), chars.slice(0, 2).join('')])]
       for (const key of keys) {
-        if (budget.remaining < 2 || budget.controller.signal.aborted) { complete = false; break }
+        if (budget.remaining < 1 || budget.controller.signal.aborted) { complete = false; break }
         const fallback = await searchPoems(key, budget, 1, work => workLines(work).some(line => line.normalized === normalized))
         const variant = fallback.works.flatMap(workLines).find(line => line.normalized === normalized)
         if (variant) return { status: 'found', line: variant }
@@ -92,7 +92,7 @@ export async function getPoem(line: PoetryLine): Promise<PoetryWork> {
   if (work) return work
   if (line.poemId.startsWith('souyun:')) return (await cachedWork(line.poemId)) || fetchWork(line.poemId)
   const found = await findLine(line.text)
-  if (!found?.work) throw new Error('本次检索未找到这句诗对应的唐宋作品，请稍后重试。')
+  if (!found?.work) throw new Error('本次检索未找到这句诗对应的作品，请稍后重试。')
   return found.work
 }
 
@@ -122,7 +122,7 @@ export async function candidateLines(a: PoetryLine, min: number, max: number, us
   }
   let message = '本次检索未找到可用的接龙答案。请重试或结束后调整字数范围。'
   for (const char of chars) {
-    if (budget.remaining < 2 || budget.controller.signal.aborted) break
+    if (budget.remaining < 1 || budget.controller.signal.aborted) break
     const result = await searchPoems(char, budget, 1)
     const lines = unique(result.works.flatMap(workLines).filter(fits))
     if (lines.length) return lines

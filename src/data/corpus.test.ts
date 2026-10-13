@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PoetryLine } from '../types'
+import { lineFits } from '../engine/poetry'
 
 const seed = { schemaVersion: 1, works: [{ id: 'seed:1', author: '辛弃疾', title: '丑奴儿', dynasty: '宋', sourceFile: 'seed.json', sourceIndex: 0, provider: 'seed', paragraphs: ['少年不识愁滋味，爱上层楼。'] }], lines: [{ id: 'old-id', text: '少年不识愁滋味', normalized: '少年不识愁滋味', length: 7, poemId: 'seed:1', familiarity: 2 }] }
 const poem = { Id: 30425, Dynasty: '唐', Author: '杜甫', Title: { Content: '江畔独步寻花七绝句' }, Clauses: [{ Content: '留連戲蝶時時舞，' }, { Content: '自在嬌鶯恰恰啼。' }], Comments: [{ Content: '不能将注释当作诗句' }] }
@@ -19,6 +20,22 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('static corpus and online lookup', () => {
+  it('finds the unique Ming dynasty result for 行也思君 without unrelated fallback searches', async () => {
+    online = url => {
+      expect(url.searchParams.has('dynasty')).toBe(false)
+      expect(url.searchParams.get('key')).toBe('行也思君')
+      return page([{ ...poem, Id: 264333, Author: '唐寅', Dynasty: '明', Title: { Content: '一剪梅' }, Clauses: [{ Content: '行也思君，' }, { Content: '坐也思君。' }] }])
+    }
+    const { lookupLine, getPoem } = await import('./corpus')
+    const result = await lookupLine('行也思君')
+    expect(result.status).toBe('found')
+    if (result.status !== 'found') throw Error('Expected Ming dynasty match')
+    expect(result.line.author).toBe('唐寅')
+    expect(result.line.dynasty).toBe('明')
+    expect(lineFits('李白乘舟将欲行', 4, '也', result.line)).toBe(true)
+    expect((await getPoem(result.line)).title).toBe('一剪梅')
+    expect(calls.filter(url => url.includes('api.sou-yun.cn'))).toHaveLength(1)
+  })
   it('uses local lines and complete works without a query service', async () => {
     const { findLine, getPoem } = await import('./corpus')
     const line = (await findLine('少年不識愁滋味'))!
@@ -28,7 +45,7 @@ describe('static corpus and online lookup', () => {
     expect(calls.some(url => url.includes('api/poetry'))).toBe(false)
   })
   it('matches a full normalized clause and stores only poem text', async () => {
-    online = url => url.searchParams.get('dynasty') === '7' ? page([poem]) : null
+    online = () => page([poem])
     const { lookupLine, getPoem } = await import('./corpus')
     const result = await lookupLine('留连戏蝶时时舞')
     expect(result.status).toBe('found')
@@ -38,14 +55,16 @@ describe('static corpus and online lookup', () => {
     vi.stubGlobal('navigator', { onLine: false })
     expect((await lookupLine('自在娇莺恰恰啼')).status).toBe('found')
   })
-  it('does not accept a substring or a work from another dynasty', async () => {
+  it('does not accept a substring while accepting complete works from other dynasties', async () => {
     online = () => page([{ ...poem, Dynasty: '清' }, poem])
     const { lookupLine } = await import('./corpus')
     expect((await lookupLine('戏蝶时时')).status).toBe('not-found')
+    const result = await lookupLine('留连戏蝶时时舞')
+    expect(result.status).toBe('found')
   })
   it('finds annotated variants through a short keyword and accepts them from offline cache', async () => {
     const original = '乡音难（一作无）改鬓（一作面）毛衰。'
-    online = url => url.searchParams.get('key') === '毛衰' && url.searchParams.get('dynasty') === '7'
+    online = url => url.searchParams.get('key') === '毛衰'
       ? page([{ ...poem, Author: '贺知章', Title: { Content: '回乡偶书' }, Clauses: [{ Content: original }] }]) : null
     const { lookupLine } = await import('./corpus')
     const result = await lookupLine('鄉音無改鬢毛衰')
@@ -66,7 +85,7 @@ describe('static corpus and online lookup', () => {
     online = url => page([poem], 999, Number(url.searchParams.get('pageNo')))
     const start = calls.length
     expect((await lookupLine('未出现在诗里的句子')).status).toBe('incomplete')
-    expect(calls.length - start).toBe(6)
+    expect(calls.length - start).toBe(3)
   })
   it('keeps local answers available offline and explains missing target lengths', async () => {
     vi.stubGlobal('navigator', { onLine: false })

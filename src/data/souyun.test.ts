@@ -55,7 +55,11 @@ describe('Souyun public API boundaries', () => {
     const budgets = [new SearchBudget(), new SearchBudget(), new SearchBudget()]
     await Promise.all(budgets.map(budget => searchPoems('同一请求', budget)))
     budgets.forEach(budget => budget.close())
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const distinct = [new SearchBudget(), new SearchBudget(), new SearchBudget()]
+    await Promise.all(distinct.map((budget, index) => searchPoems(`不同请求${index}`, budget)))
+    distinct.forEach(budget => budget.close())
+    expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(peak).toBe(2)
   })
   it('returns an incomplete result after the operation deadline', async () => {
