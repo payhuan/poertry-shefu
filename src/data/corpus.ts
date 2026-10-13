@@ -61,7 +61,20 @@ export async function lookupLine(raw: string, sharedBudget?: SearchBudget): Prom
     const result = await searchPoems(normalized, budget, 3, work => workLines(work).some(line => line.normalized === normalized))
     const found = result.works.flatMap(workLines).find(line => line.normalized === normalized)
     if (found) return { status: 'found', line: found }
-    return result.complete ? { status: 'not-found' } : { status: 'incomplete', message: result.message || '本次检索未完成，请重试。' }
+    let complete = result.complete, message = result.message
+    // An inline variant note can interrupt a full-sentence keyword in the source text.
+    if (complete && [...normalized].length > 2) {
+      const chars = [...normalized]
+      const keys = [...new Set([chars.slice(-2).join(''), chars.slice(0, 2).join('')])]
+      for (const key of keys) {
+        if (budget.remaining < 2 || budget.controller.signal.aborted) { complete = false; break }
+        const fallback = await searchPoems(key, budget, 1, work => workLines(work).some(line => line.normalized === normalized))
+        const variant = fallback.works.flatMap(workLines).find(line => line.normalized === normalized)
+        if (variant) return { status: 'found', line: variant }
+        complete &&= fallback.complete; message ||= fallback.message
+      }
+    }
+    return complete ? { status: 'not-found' } : { status: 'incomplete', message: message || '本次检索未完成，请重试。' }
   } finally { if (!sharedBudget) budget.close() }
 }
 

@@ -43,6 +43,21 @@ describe('static corpus and online lookup', () => {
     const { lookupLine } = await import('./corpus')
     expect((await lookupLine('戏蝶时时')).status).toBe('not-found')
   })
+  it('finds annotated variants through a short keyword and accepts them from offline cache', async () => {
+    const original = '乡音难（一作无）改鬓（一作面）毛衰。'
+    online = url => url.searchParams.get('key') === '毛衰' && url.searchParams.get('dynasty') === '7'
+      ? page([{ ...poem, Author: '贺知章', Title: { Content: '回乡偶书' }, Clauses: [{ Content: original }] }]) : null
+    const { lookupLine } = await import('./corpus')
+    const result = await lookupLine('鄉音無改鬢毛衰')
+    expect(result.status).toBe('found')
+    if (result.status !== 'found') throw Error('Expected annotated variant')
+    expect(result.line.normalized).toBe('乡音无改鬓毛衰')
+    expect(result.line.work?.paragraphs).toEqual([original])
+    expect(calls.filter(url => url.includes('api.sou-yun.cn')).length).toBeLessThanOrEqual(6)
+    vi.stubGlobal('navigator', { onLine: false })
+    for (const raw of ['乡音难改鬓毛衰', '乡音无改面毛衰', '乡音难改面毛衰']) expect((await lookupLine(raw)).status).toBe('found')
+    expect((await lookupLine('乡音不改鬓毛衰')).status).toBe('incomplete')
+  })
   it('distinguishes null empty results from malformed responses and pagination limits', async () => {
     const { lookupLine } = await import('./corpus')
     expect((await lookupLine('这是不存在的句子')).status).toBe('not-found')

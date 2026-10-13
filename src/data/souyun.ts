@@ -8,8 +8,39 @@ export class LookupError extends Error {
 }
 
 export function splitClauses(paragraphs: string[]): string[] {
-  return paragraphs.flatMap(text => text.split(/[，。！？；、,.!?;：:\n\r]+/u)).map(text => text.trim())
-    .filter(text => /^\p{Script=Han}+$/u.test(text))
+  const clauses: string[] = []
+  for (const paragraph of paragraphs) {
+    let clause = '', depth = 0
+    for (const char of paragraph) {
+      if (/[（(]/u.test(char)) depth++
+      if (!depth && /[，。！？；、,.!?;：:\n\r]/u.test(char)) { clauses.push(clause); clause = ''; continue }
+      clause += char
+      if (/[）)]/u.test(char)) depth = Math.max(0, depth - 1)
+    }
+    clauses.push(clause)
+  }
+  return [...new Set(clauses.flatMap(expandVariants).map(text => text.trim())
+    .filter(text => /^\p{Script=Han}+$/u.test(text)))]
+}
+
+function expandVariants(clause: string): string[] {
+  let variants = [''], cursor = 0
+  for (const match of clause.matchAll(/[（(]([^（）()]*)[）)]/gu)) {
+    variants = variants.map(text => text + clause.slice(cursor, match.index))
+    const note = match[1].trim().match(/^一作\s*[「“]?([\p{Script=Han}、，/]+)[」”]?$/u)
+    if (note) {
+      const alternatives = note[1].split(/[、，/]/u).filter(Boolean)
+      // Inline 一作 notes substitute the immediately preceding characters; combine independent notes.
+      variants = [...new Set(variants.flatMap(text => [text, ...alternatives.flatMap(alternative => {
+        const length = [...alternative].length, chars = [...text]
+        return /^\p{Script=Han}+$/u.test(chars.slice(-length).join('')) && chars.length >= length
+          ? [chars.slice(0, -length).join('') + alternative] : []
+      })]))]
+      if (variants.length > 256) throw new LookupError('此句异文组合过多，暂无法完整核实，请换用其他诗句。', 'incomplete')
+    }
+    cursor = match.index + match[0].length
+  }
+  return variants.map(text => text + clause.slice(cursor))
 }
 
 export function workLines(work: PoetryWork): PoetryLine[] {
